@@ -6,11 +6,12 @@ import {
   SidebarTrigger,
   SidebarInset,
 } from "@/components/ui/sidebar";
-import { DashboardSidebar } from "@/components/dashboard_sidebar";
-import { SectionCards } from "@/components/section_cards";
-import { DashboardProvider, useDashboard } from "@/context/dashboard_context";
 import { VUReport, vuReportSchema } from "@/types/dashboard";
+import { DashboardSidebar } from "@/components/dashboard_sidebar";
+import { DashboardProvider, useDashboard } from "@/context/dashboard_context";
+import { SectionCards } from "@/components/section_cards";
 import { DataTable } from "@/components/data_table";
+import { ChartAreaInteractive } from "@/components/chart_area_interactive";
 
 type ChartHistory = {
   overall: Array<{ timestamp: number; avg_latency: number }>;
@@ -40,6 +41,22 @@ function DashboardContent() {
 
   const dashboardKey = selectedDashboard?.id || "";
   const lastGoodData = dashboardData[dashboardKey] || [];
+
+  // Chart history for current dashboard
+  const chartHistory = chartHistories[dashboardKey] || {
+    overall: [],
+    perStep: {},
+    perVU: {},
+  };
+
+  const setChartHistory = (updater: (prev: ChartHistory) => ChartHistory) => {
+    setChartHistories((prev) => ({
+      ...prev,
+      [dashboardKey]: updater(
+        prev[dashboardKey] || { overall: [], perStep: {}, perVU: {} }
+      ),
+    }));
+  };
 
   // Always up-to-date refs for calculations
   const dashboardDataRef = useRef(dashboardData);
@@ -313,17 +330,11 @@ function DashboardContent() {
               currentVUCount={currentVUCount}
             />
 
-            {/* Placeholder for future components */}
-            {selectedDashboard && (
-                <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
-                  ChartAreaInteractive will go here
-                  <div className="text-xs mt-2">
-                    Current VU Count: {lastGoodData.length} | Dashboard Key:{" "}
-                    {dashboardKey} | Stop Time:{" "}
-                    {dashboardStopTimes[dashboardKey] || "None"}
-                  </div>
-                </div>
-            )}
+            <ChartAreaInteractive
+              vuData={lastGoodData}
+              chartHistory={chartHistory}
+              setChartHistory={setChartHistory}
+            />
             <DataTable data={lastGoodData} />
           </div>
         </div>
