@@ -14,11 +14,13 @@ import { Button } from "@/components/ui/button";
 interface DashboardSidebarProps {
   selectedDashboard?: DashboardToken | null;
   onSelectDashboard: (dashboard: DashboardToken) => void;
+  onDashboardDeleted?: (dashboardId: string) => void; // New callback prop
 }
 
 export function DashboardSidebar({
   selectedDashboard,
   onSelectDashboard,
+  onDashboardDeleted,
 }: DashboardSidebarProps) {
   const { isOpen } = useSidebar();
   const [dashboards, setDashboards] = useState<DashboardToken[]>([]);
@@ -26,6 +28,7 @@ export function DashboardSidebar({
   const [error, setError] = useState<string | null>(null);
 
   const deleteDashboard = (dashboardId: string) => {
+    // Remove from dashboards list
     setDashboards((prevDashboards) => {
       const updatedDashboards = prevDashboards.filter(
         (d) => d.id !== dashboardId
@@ -34,6 +37,35 @@ export function DashboardSidebar({
       localStorage.setItem("klt-dashboards", JSON.stringify(updatedDashboards));
       return updatedDashboards;
     });
+
+    // Clean up dashboard data from localStorage
+    try {
+      const stored = localStorage.getItem('dashboard-storage');
+      if (stored) {
+        const data = JSON.parse(stored);
+        
+        // Remove the specific dashboard data
+        if (data.dashboardData && data.dashboardData[dashboardId]) {
+          delete data.dashboardData[dashboardId];
+        }
+        if (data.chartHistories && data.chartHistories[dashboardId]) {
+          delete data.chartHistories[dashboardId];
+        }
+        if (data.dashboardStopTimes && data.dashboardStopTimes[dashboardId]) {
+          delete data.dashboardStopTimes[dashboardId];
+        }
+        
+        // Save the cleaned data back to localStorage
+        localStorage.setItem('dashboard-storage', JSON.stringify(data));
+        
+        console.log(`Cleaned up data for dashboard: ${dashboardId}`);
+      }
+    } catch (error) {
+      console.error('Failed to clean up dashboard data:', error);
+    }
+
+    // Notify parent component about the deletion
+    onDashboardDeleted?.(dashboardId);
   };
 
   const fetchDashboards = async () => {
@@ -66,9 +98,9 @@ export function DashboardSidebar({
       }
     } catch (error) {
       console.error("Failed to fetch dashboards:", error);
-      setError(
-        error instanceof Error ? error.message : "Failed to fetch dashboards"
-      );
+      // setError(
+      //   error instanceof Error ? error.message : "Failed to fetch dashboards"
+      // );
     } finally {
       setLoading(false);
     }
@@ -85,16 +117,7 @@ export function DashboardSidebar({
         console.error("Failed to parse saved dashboards:", error);
       }
     }
-
     fetchDashboards();
-
-    // // Set up interval to fetch every 100ms
-    // const interval = setInterval(() => {
-    //   fetchDashboards();
-    // }, 1000);
-
-    // // Cleanup interval on component unmount
-    // return () => clearInterval(interval);
   }, []);
 
   return (
@@ -118,6 +141,12 @@ export function DashboardSidebar({
 
       <SidebarContent>
         <div className="space-y-2">
+          {error && isOpen && (
+            <div className="text-xs text-red-500 mt-1">
+              {error}
+            </div>
+          )}
+
           {loading && (
             <div className={`text-sm text-gray-400 ${!isOpen && "sr-only"}`}>
               Loading...
@@ -167,6 +196,7 @@ export function DashboardSidebar({
                   variant="ghost"
                   size="sm"
                   className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0 hover:bg-red-100 hover:text-red-600 transition-opacity"
+                  title={`Delete ${dashboard.title}`}
                 >
                   <X className="h-3 w-3" />
                 </Button>

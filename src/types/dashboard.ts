@@ -12,7 +12,7 @@ export const stepReportSchema = z.object({
 
 // VU Report Schema
 export const vuReportSchema = z.object({
-  vu_id: z.number().int().positive(),
+  vu_id: z.number().int().min(0),
   ts_exec_count: z.number().int().nonnegative(),
   ts_exec_failure: z.number().int().nonnegative(),
   ts_exec_time: z.array(z.number().nonnegative()), // Execution times in nanoseconds
