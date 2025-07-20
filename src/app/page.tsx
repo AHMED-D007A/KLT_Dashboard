@@ -9,7 +9,8 @@ import {
 import { DashboardSidebar } from "@/components/dashboard_sidebar";
 import { SectionCards } from "@/components/section_cards";
 import { DashboardProvider, useDashboard } from "@/context/dashboard_context";
-import { DashboardToken, VUReport, vuReportSchema } from "@/types/dashboard";
+import { VUReport, vuReportSchema } from "@/types/dashboard";
+import { DataTable } from "@/components/data_table";
 
 type ChartHistory = {
   overall: Array<{ timestamp: number; avg_latency: number }>;
@@ -245,19 +246,19 @@ function DashboardContent() {
   // Handle dashboard deletion
   const handleDashboardDeleted = (deletedDashboardId: string) => {
     // Update local state to remove the deleted dashboard data
-    setDashboardData(prev => {
+    setDashboardData((prev) => {
       const updated = { ...prev };
       delete updated[deletedDashboardId];
       return updated;
     });
 
-    setChartHistories(prev => {
+    setChartHistories((prev) => {
       const updated = { ...prev };
       delete updated[deletedDashboardId];
       return updated;
     });
 
-    setDashboardStopTimes(prev => {
+    setDashboardStopTimes((prev) => {
       const updated = { ...prev };
       delete updated[deletedDashboardId];
       return updated;
@@ -314,20 +315,16 @@ function DashboardContent() {
 
             {/* Placeholder for future components */}
             {selectedDashboard && (
-              <div className="space-y-4">
                 <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
                   ChartAreaInteractive will go here
                   <div className="text-xs mt-2">
-                    Raw VU Count: {lastGoodData.length} | Dashboard Key:{" "}
+                    Current VU Count: {lastGoodData.length} | Dashboard Key:{" "}
                     {dashboardKey} | Stop Time:{" "}
                     {dashboardStopTimes[dashboardKey] || "None"}
                   </div>
                 </div>
-                <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
-                  DataTable will go here
-                </div>
-              </div>
             )}
+            <DataTable data={lastGoodData} />
           </div>
         </div>
       </SidebarInset>

@@ -89,7 +89,7 @@ export function SectionCards({
     {
       label: "Target RPS",
       value: lttoken.load_options.RPS.toLocaleString(),
-      color: "text-Gray-600"
+      color: "text-gray-600"
     },
     {
       label: "Status",
