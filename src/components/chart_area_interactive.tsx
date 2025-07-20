@@ -323,6 +323,7 @@ export function ChartAreaInteractive({
                 fillOpacity={0.3}
                 stroke={chartConfig[key].color}
                 strokeWidth={2}
+                name={chartConfig[key].label || key}
               />
             ))}
           </AreaChart>
@@ -409,6 +410,7 @@ export function ChartAreaInteractive({
                             fillOpacity={0.4}
                             stroke={color}
                             strokeWidth={1.5}
+                            name={chartConfig[key].label || key}
                           />
                         </AreaChart>
                       </ChartContainer>
