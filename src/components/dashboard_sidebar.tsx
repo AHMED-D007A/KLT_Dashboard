@@ -83,9 +83,9 @@ export function DashboardSidebar({
 
         const data = await response.json();
 
-        // Update state and get the new value
+        // Update state and get the new value - prepend to beginning
         setDashboards((prevDashboards) => {
-          const updatedDashboards = [...prevDashboards, data];
+          const updatedDashboards = [data, ...prevDashboards];
           // Update localStorage with the actual new array
           localStorage.setItem("klt-dashboards", JSON.stringify(updatedDashboards));
           return updatedDashboards;
