@@ -121,7 +121,7 @@ export function DashboardSidebar({
             disabled={loading}
             variant="ghost"
             size="sm"
-            className="p-2 rounded-md hover:bg-gray-100 w-full justify-start cursor-pointer"
+            className="p-2 text-orange-900 rounded-md hover:bg-orange-100 h-full w-full justify-start cursor-pointer"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {isOpen && (
@@ -155,11 +155,11 @@ export function DashboardSidebar({
             <div
               key={dashboard.id}
               className={`
-                w-full flex items-center gap-2 p-2 rounded-md transition-colors group
+                w-full flex text-orange-900 items-center gap-2 p-2 rounded-md transition-colors group
                 ${
                   selectedDashboard?.id === dashboard.id
-                    ? "bg-blue-100 text-blue-900"
-                    : "hover:bg-gray-100"
+                    ? "bg-orange-100 text-orange-900"
+                    : "hover:bg-orange-100"
                 }
               `}
             >
@@ -174,7 +174,7 @@ export function DashboardSidebar({
                     <div className="text-sm font-medium truncate">
                       {dashboard.title}
                     </div>
-                    <div className="text-xs text-gray-500 truncate">
+                    <div className="text-xs text-orange-500 truncate">
                       {dashboard.id}
                     </div>
                   </div>

@@ -208,20 +208,20 @@ export function DataTable({ data: initialData }: DataTableProps) {
 
   if (!initialData || initialData.length === 0) {
     return (
-      <div className="w-full bg-white rounded-lg border p-8 text-center text-gray-500">
+      <div className="w-full bg-orange-50 border border-orange-200 rounded-lg p-8 text-center text-orange-600">
         No VU data available
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-white rounded-lg border overflow-hidden">
+    <div className="w-full bg-orange-50 border border-orange-200 rounded-lg overflow-hidden">
       {/* Header with Tabs */}
-      <div className="p-4 border-b bg-gray-50">
+      <div className="p-4 border-b border-orange-200 bg-orange-100">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-semibold">Load Test Data</h3>
-            <p className="text-sm text-gray-600">
+            <h3 className="text-lg font-semibold text-orange-900">Load Test Data</h3>
+            <p className="text-sm text-orange-700">
               {view === "virtual-users" 
                 ? `${vuData.length} Virtual Users` 
                 : `${aggregatedSteps.length} Unique Steps`
@@ -258,7 +258,7 @@ export function DataTable({ data: initialData }: DataTableProps) {
         </div>
         
         {/* Pagination */}
-        <div className="p-4 border-t bg-gray-50">
+        <div className="p-4 border-t border-orange-200 bg-orange-100">
           {view === "virtual-users" ? (
             <DataTablePagination table={vuTable} />
           ) : (

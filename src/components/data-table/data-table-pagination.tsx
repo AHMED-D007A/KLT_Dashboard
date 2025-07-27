@@ -24,12 +24,12 @@ export function DataTablePagination<TData>({ table }: DataTablePaginationProps<T
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => table.setPageSize(Number(value))}
           >
-            <SelectTrigger className="h-8 w-[70px] bg-white border border-gray-300 hover:bg-gray-50" id="rows-per-page">
+            <SelectTrigger className="h-8 w-[70px] bg-orange-50 border border-orange-200 hover:bg-orange-100" id="rows-per-page">
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
-            <SelectContent side="top" className="bg-white border border-gray-300 shadow-lg">
+            <SelectContent side="top" className="bg-orange-50 border border-orange-200 shadow-lg">
               {[10, 20, 30, 40, 50].map((pageSize) => (
-                <SelectItem key={pageSize} value={`${pageSize}`} className="hover:bg-gray-100">
+                <SelectItem key={pageSize} value={`${pageSize}`} className="hover:bg-orange-100">
                   {pageSize}
                 </SelectItem>
               ))}

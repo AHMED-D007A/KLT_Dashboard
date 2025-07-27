@@ -87,22 +87,26 @@ function DashboardContent() {
   }, [dashboardCloseTimes]);
 
   // Helper function to get dashboard-specific localStorage key
-  const getDashboardSpecificKey = (baseKey: string, dashboardId: string) => 
+  const getDashboardSpecificKey = (baseKey: string, dashboardId: string) =>
     `${baseKey}-dashboard-${dashboardId}`;
 
   // Helper function to parse duration string to seconds
   const parseDurationToSeconds = (duration: string): number => {
     const match = duration.match(/(\d+)([smh])/);
     if (!match) return 0;
-    
+
     const value = parseInt(match[1]);
     const unit = match[2];
-    
+
     switch (unit) {
-      case 's': return value;
-      case 'm': return value * 60;
-      case 'h': return value * 3600;
-      default: return 0;
+      case "s":
+        return value;
+      case "m":
+        return value * 60;
+      case "h":
+        return value * 3600;
+      default:
+        return 0;
     }
   };
 
@@ -116,14 +120,14 @@ function DashboardContent() {
 
   // Load dashboard from URL parameter
   useEffect(() => {
-    const dashboardId = searchParams?.get('dashboard');
+    const dashboardId = searchParams?.get("dashboard");
     if (dashboardId && !selectedDashboard) {
       // Load dashboards from localStorage to find the selected one
       const savedDashboards = localStorage.getItem("klt-dashboards");
       if (savedDashboards) {
         try {
           const parsed: DashboardToken[] = JSON.parse(savedDashboards);
-          const dashboard = parsed.find(d => d.id === dashboardId);
+          const dashboard = parsed.find((d) => d.id === dashboardId);
           if (dashboard) {
             setSelectedDashboard(dashboard);
           }
@@ -139,7 +143,10 @@ function DashboardContent() {
     if (!selectedDashboard?.id) return;
 
     try {
-      const dashboardSpecificKey = getDashboardSpecificKey("dashboard-storage", selectedDashboard.id);
+      const dashboardSpecificKey = getDashboardSpecificKey(
+        "dashboard-storage",
+        selectedDashboard.id
+      );
       const stored = localStorage.getItem(dashboardSpecificKey);
       if (stored) {
         const data: DashboardStorage = JSON.parse(stored);
@@ -156,13 +163,23 @@ function DashboardContent() {
 
   // Check if dashboard should be marked as completed based on elapsed time vs target duration
   useEffect(() => {
-    if (!selectedDashboard?.id || !selectedDashboard?.created_at || !selectedDashboard?.load_options?.Duration) return;
+    if (
+      !selectedDashboard?.id ||
+      !selectedDashboard?.created_at ||
+      !selectedDashboard?.load_options?.Duration
+    )
+      return;
 
     const dashboardKey = selectedDashboard.id;
-    const targetDurationSeconds = parseDurationToSeconds(selectedDashboard.load_options.Duration);
-    
+    const targetDurationSeconds = parseDurationToSeconds(
+      selectedDashboard.load_options.Duration
+    );
+
     // Only check if dashboard is not already stopped and has a close time
-    if (dashboardStopTimes[dashboardKey] && dashboardStopTimes[dashboardKey] !== "0s") {
+    if (
+      dashboardStopTimes[dashboardKey] &&
+      dashboardStopTimes[dashboardKey] !== "0s"
+    ) {
       return; // Already stopped
     }
 
@@ -187,7 +204,9 @@ function DashboardContent() {
           return updated;
         });
 
-        console.log(`Dashboard ${dashboardKey} marked as completed with saved close time: ${savedCloseTime}`);
+        console.log(
+          `Dashboard ${dashboardKey} marked as completed with saved close time: ${savedCloseTime}`
+        );
       }
     }
   }, [selectedDashboard, dashboardStopTimes, dashboardCloseTimes]);
@@ -203,12 +222,21 @@ function DashboardContent() {
         dashboardStopTimes,
         dashboardCloseTimes, // Include close times in storage
       };
-      const dashboardSpecificKey = getDashboardSpecificKey("dashboard-storage", selectedDashboard.id);
+      const dashboardSpecificKey = getDashboardSpecificKey(
+        "dashboard-storage",
+        selectedDashboard.id
+      );
       localStorage.setItem(dashboardSpecificKey, JSON.stringify(dataToStore));
     } catch (error) {
       console.error("Failed to save to localStorage:", error);
     }
-  }, [dashboardData, chartHistories, dashboardStopTimes, dashboardCloseTimes, selectedDashboard?.id]);
+  }, [
+    dashboardData,
+    chartHistories,
+    dashboardStopTimes,
+    dashboardCloseTimes,
+    selectedDashboard?.id,
+  ]);
 
   // Handle browser tab close/refresh to save elapsed time
   useEffect(() => {
@@ -216,7 +244,8 @@ function DashboardContent() {
 
     const handleBeforeUnload = () => {
       // Only save close time if dashboard is not already stopped
-      const currentStopTime = dashboardStopTimesRef.current[selectedDashboard.id];
+      const currentStopTime =
+        dashboardStopTimesRef.current[selectedDashboard.id];
       if (currentStopTime && currentStopTime !== "0s") {
         return; // Already stopped, don't save close time
       }
@@ -234,7 +263,10 @@ function DashboardContent() {
         }));
 
         // Also save directly to localStorage since state might not update in time
-        const dashboardSpecificKey = getDashboardSpecificKey("dashboard-storage", selectedDashboard.id);
+        const dashboardSpecificKey = getDashboardSpecificKey(
+          "dashboard-storage",
+          selectedDashboard.id
+        );
         const currentStorage = localStorage.getItem(dashboardSpecificKey);
         if (currentStorage) {
           const data: DashboardStorage = JSON.parse(currentStorage);
@@ -245,16 +277,18 @@ function DashboardContent() {
           localStorage.setItem(dashboardSpecificKey, JSON.stringify(data));
         }
 
-        console.log(`Saved close time for dashboard ${selectedDashboard.id}: ${elapsedString}`);
+        console.log(
+          `Saved close time for dashboard ${selectedDashboard.id}: ${elapsedString}`
+        );
       } catch (error) {
         console.error("Failed to save close time on unload:", error);
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [selectedDashboard?.id, selectedDashboard?.created_at]);
 
@@ -266,7 +300,10 @@ function DashboardContent() {
       if (!response.ok) throw new Error("Failed to fetch");
       const json = await response.json();
 
-      console.log(`Raw API data for ${url} (Dashboard: ${selectedDashboard?.id}):`, json);
+      console.log(
+        `Raw API data for ${url} (Dashboard: ${selectedDashboard?.id}):`,
+        json
+      );
 
       if (!Array.isArray(json)) {
         console.warn("API returned non-array data:", typeof json);
@@ -287,7 +324,9 @@ function DashboardContent() {
         const result = vuReportSchema.safeParse(item);
         if (result.success) {
           validatedData.push(result.data);
-          console.log(`Valid VU ${result.data.vu_id} at index ${index} (Dashboard: ${selectedDashboard?.id})`);
+          console.log(
+            `Valid VU ${result.data.vu_id} at index ${index} (Dashboard: ${selectedDashboard?.id})`
+          );
         } else {
           invalidData.push({
             index,
@@ -298,7 +337,9 @@ function DashboardContent() {
         }
       });
 
-      console.log(`Validation summary for ${url} (Dashboard: ${selectedDashboard?.id}):`);
+      console.log(
+        `Validation summary for ${url} (Dashboard: ${selectedDashboard?.id}):`
+      );
       console.log(`- Raw items: ${json.length}`);
       console.log(`- Valid VUs: ${validatedData.length}`);
       console.log(`- Invalid items: ${invalidData.length}`);
@@ -309,7 +350,11 @@ function DashboardContent() {
 
       // Log VU IDs to check for missing ones
       const vuIds = validatedData.map((vu) => vu.vu_id).sort((a, b) => a - b);
-      console.log(`Valid VU IDs: [${vuIds.join(", ")}] (Dashboard: ${selectedDashboard?.id})`);
+      console.log(
+        `Valid VU IDs: [${vuIds.join(", ")}] (Dashboard: ${
+          selectedDashboard?.id
+        })`
+      );
 
       return validatedData;
     } catch (error) {
@@ -327,7 +372,9 @@ function DashboardContent() {
       dashboardStopTimes[dashboardKey] &&
       dashboardStopTimes[dashboardKey] !== "0s";
     if (isStopped) {
-      console.log(`Dashboard ${dashboardKey} is already stopped. Not polling. (Dashboard: ${selectedDashboard?.id})`);
+      console.log(
+        `Dashboard ${dashboardKey} is already stopped. Not polling. (Dashboard: ${selectedDashboard?.id})`
+      );
       return;
     }
 
@@ -340,7 +387,9 @@ function DashboardContent() {
       // Re-check stopped state on each call
       const currentStopTime = dashboardStopTimesRef.current[dashboardKey];
       if (currentStopTime && currentStopTime !== "0s") {
-        console.log(`Dashboard ${dashboardKey} was stopped during polling. (Dashboard: ${selectedDashboard?.id})`);
+        console.log(
+          `Dashboard ${dashboardKey} was stopped during polling. (Dashboard: ${selectedDashboard?.id})`
+        );
         clearInterval(interval);
         return;
       }
@@ -362,7 +411,10 @@ function DashboardContent() {
           }
         }
       } catch (error) {
-        console.error(`Error fetching VU data (Dashboard: ${selectedDashboard?.id}):`, error);
+        console.error(
+          `Error fetching VU data (Dashboard: ${selectedDashboard?.id}):`,
+          error
+        );
         failCount++;
       }
 
@@ -397,7 +449,9 @@ function DashboardContent() {
     };
 
     // Start fetching
-    console.log(`Starting data polling for dashboard: ${dashboardKey} (Dashboard: ${selectedDashboard?.id})`);
+    console.log(
+      `Starting data polling for dashboard: ${dashboardKey} (Dashboard: ${selectedDashboard?.id})`
+    );
     getData();
     interval = setInterval(getData, 1000);
 
@@ -405,7 +459,9 @@ function DashboardContent() {
       isMounted = false;
       if (interval) {
         clearInterval(interval);
-        console.log(`Stopped polling for dashboard: ${dashboardKey} (Dashboard: ${selectedDashboard?.id})`);
+        console.log(
+          `Stopped polling for dashboard: ${dashboardKey} (Dashboard: ${selectedDashboard?.id})`
+        );
       }
     };
   }, [selectedDashboard, dashboardKey]);
@@ -442,7 +498,9 @@ function DashboardContent() {
       setSelectedDashboard(null);
     }
 
-    console.log(`Removed dashboard ${deletedDashboardId} from component state (Dashboard: ${selectedDashboard?.id})`);
+    console.log(
+      `Removed dashboard ${deletedDashboardId} from component state (Dashboard: ${selectedDashboard?.id})`
+    );
   };
 
   const currentVUCount = lastGoodData.length;
@@ -458,15 +516,16 @@ function DashboardContent() {
       <SidebarInset>
         {/* Header */}
         <header className="flex h-12 items-center gap-2 border-b px-4">
-          <SidebarTrigger />
-          <h1 className="text-lg font-semibold">
+          <SidebarTrigger className="text-orange-900" />
+          <h1 className="text-lg font-semibold text-orange-900">
             {selectedDashboard ? selectedDashboard.title : "Select a Dashboard"}
           </h1>
           {/* Debug info */}
           {selectedDashboard && (
-            <span className="text-xs text-gray-500 ml-auto">
-              VUs: {currentVUCount} | Status:{" "}
-              {dashboardStopTimes[dashboardKey] ? "Completed" : "Running"} | Dashboard: {selectedDashboard.id}
+            <span className="text-xs text-orange-500 ml-auto">
+              {/* VUs: {currentVUCount} | Status:{" "}
+              {dashboardStopTimes[dashboardKey] ? "Completed" : "Running"} | */}
+              Dashboard: {selectedDashboard.id}
             </span>
           )}
         </header>

@@ -276,8 +276,8 @@ export function ChartAreaInteractive({
               value="overall" 
               className={`text-xs transition-all ${
                 view === "overall" 
-                  ? "bg-blue-100 text-blue-900 border-blue-300 shadow-sm" 
-                  : "hover:bg-gray-50"
+                  ? "bg-orange-100 text-orange-900 border-orange-300 shadow-sm" 
+                  : "hover:bg-oragne-50"
               }`}
             >
               Overall
@@ -286,8 +286,8 @@ export function ChartAreaInteractive({
               value="perStep" 
               className={`text-xs transition-all ${
                 view === "perStep" 
-                  ? "bg-blue-100 text-blue-900 border-blue-300 shadow-sm" 
-                  : "hover:bg-gray-50"
+                  ? "bg-orange-100 text-orange-900 border-orange-300 shadow-sm" 
+                  : "hover:bg-orange-50"
               }`}
             >
               Per Step
@@ -296,8 +296,8 @@ export function ChartAreaInteractive({
               value="perVU" 
               className={`text-xs transition-all ${
                 view === "perVU" 
-                  ? "bg-blue-100 text-blue-900 border-blue-300 shadow-sm" 
-                  : "hover:bg-gray-50"
+                  ? "bg-orange-100 text-orange-900 border-orange-300 shadow-sm" 
+                  : "hover:bg-orange-50"
               }`}
             >
               Per VU
@@ -346,7 +346,7 @@ export function ChartAreaInteractive({
                 variant="outline"
                 size="sm"
                 onClick={() => setShowAllMiniCharts(!showAllMiniCharts)}
-                className="text-xs"
+                className="text-xs cursor-pointer"
               >
                 {showAllMiniCharts ? `Show Less (4 of ${miniChartsData.length})` : `Show All ${view === "perStep" ? "Steps" : "VUs"} (${miniChartsData.length})`}
               </Button>
@@ -424,14 +424,14 @@ export function ChartAreaInteractive({
           {/* Additional toggle at the end for larger datasets */}
           {miniChartsData.length > 4 && (
             <div className="mt-4 flex justify-center">
-              <Button
+                <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowAllMiniCharts(!showAllMiniCharts)}
-                className="text-xs"
-              >
+                className="text-xs cursor-pointer"
+                >
                 {showAllMiniCharts ? `Show Less (4 of ${miniChartsData.length})` : `Show All ${view === "perStep" ? "Steps" : "VUs"} (${miniChartsData.length})`}
-              </Button>
+                </Button>
             </div>
           )}
         </div>

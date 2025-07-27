@@ -46,7 +46,7 @@ export function Sidebar({
   return (
     <div
       className={cn(
-        "bg-gray-50 border-r transition-all duration-300",
+        "bg-orange-50 border-r border-orange-200 transition-all duration-300",
         isOpen ? "w-64" : "w-16",
         className
       )}
@@ -65,7 +65,7 @@ export function SidebarHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("p-4 border-b", className)}>
+    <div className={cn("p-4 border-b border-orange-200", className)}>
       {children}
     </div>
   );

@@ -101,12 +101,12 @@ export function SectionCards({
   return (
     <div className="space-y-4">
       {/* Dashboard Info Header */}
-      <div className="bg-white rounded-lg border p-4">
+      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
         <div className="flex justify-between items-start">
           <div>
-            <h2 className="text-xl font-semibold">{lttoken.title}</h2>
-            <p className="text-gray-600 text-sm mt-1">{lttoken.description}</p>
-            <p className="text-gray-500 text-xs mt-2">ID: {lttoken.id}</p>
+            <h2 className="text-xl font-semibold text-orange-900">{lttoken.title}</h2>
+            <p className="text-orange-700 text-sm mt-1">{lttoken.description}</p>
+            <p className="text-orange-600 text-xs mt-2">ID: {lttoken.id}</p>
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
             stopped 
@@ -126,7 +126,7 @@ export function SectionCards({
               <div className={`text-2xl font-bold ${card.color}`}>
                 {card.value}
               </div>
-              <div className="text-sm text-gray-500">{card.label}</div>
+              <div className="text-sm text-orange-600">{card.label}</div>
             </CardHeader>
           </Card>
         ))}
@@ -138,7 +138,7 @@ export function SectionCards({
 // Simple Card Components
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white rounded-lg border shadow-sm ${className}`}>
+    <div className={`bg-orange-50 border border-orange-200 rounded-lg shadow-sm ${className}`}>
       {children}
     </div>
   );
