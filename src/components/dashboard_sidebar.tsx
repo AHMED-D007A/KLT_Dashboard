@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { RefreshCw, ChartArea, X } from "lucide-react";
+import { RefreshCw, ChartArea, X, ExternalLink } from "lucide-react";
 import { DashboardToken } from "@/types/dashboard";
 import {
   Sidebar,
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 interface DashboardSidebarProps {
   selectedDashboard?: DashboardToken | null;
   onSelectDashboard: (dashboard: DashboardToken) => void;
-  onDashboardDeleted?: (dashboardId: string) => void; // New callback prop
+  onDashboardDeleted?: (dashboardId: string) => void;
 }
 
 export function DashboardSidebar({
@@ -38,34 +38,26 @@ export function DashboardSidebar({
       return updatedDashboards;
     });
 
-    // Clean up dashboard data from localStorage
+    // Clean up dashboard data from the dashboard-specific localStorage entry
     try {
-      const stored = localStorage.getItem('dashboard-storage');
-      if (stored) {
-        const data = JSON.parse(stored);
-        
-        // Remove the specific dashboard data
-        if (data.dashboardData && data.dashboardData[dashboardId]) {
-          delete data.dashboardData[dashboardId];
-        }
-        if (data.chartHistories && data.chartHistories[dashboardId]) {
-          delete data.chartHistories[dashboardId];
-        }
-        if (data.dashboardStopTimes && data.dashboardStopTimes[dashboardId]) {
-          delete data.dashboardStopTimes[dashboardId];
-        }
-        
-        // Save the cleaned data back to localStorage
-        localStorage.setItem('dashboard-storage', JSON.stringify(data));
-        
-        console.log(`Cleaned up data for dashboard: ${dashboardId}`);
-      }
+      const dashboardSpecificKey = `dashboard-storage-dashboard-${dashboardId}`;
+      localStorage.removeItem(dashboardSpecificKey);
+      console.log(`Cleaned up data for dashboard: ${dashboardId}`);
     } catch (error) {
       console.error('Failed to clean up dashboard data:', error);
     }
 
     // Notify parent component about the deletion
     onDashboardDeleted?.(dashboardId);
+  };
+
+  const openDashboardInNewTab = (dashboard: DashboardToken) => {
+    // Create URL with dashboard ID as query parameter
+    const url = new URL(window.location.href);
+    url.searchParams.set('dashboard', dashboard.id);
+    
+    // Open in new tab
+    window.open(url.toString(), '_blank');
   };
 
   const fetchDashboards = async () => {
@@ -172,8 +164,9 @@ export function DashboardSidebar({
               `}
             >
               <button
-                onClick={() => onSelectDashboard(dashboard)}
+                onClick={() => openDashboardInNewTab(dashboard)}
                 className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                title={`Open ${dashboard.title} in new tab`}
               >
                 <ChartArea className="h-4 w-4 flex-shrink-0" />
                 {isOpen && (
@@ -185,6 +178,9 @@ export function DashboardSidebar({
                       {dashboard.id}
                     </div>
                   </div>
+                )}
+                {isOpen && (
+                  <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400" />
                 )}
               </button>
               {isOpen && (
