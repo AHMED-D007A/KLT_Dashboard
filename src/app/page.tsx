@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   SidebarProvider,
@@ -29,7 +29,6 @@ type DashboardStorage = {
 
 function DashboardContent() {
   const { selectedDashboard, setSelectedDashboard } = useDashboard();
-  const searchParams = useSearchParams();
 
   // Store data for all dashboards (client-side only)
   const [dashboardData, setDashboardData] = useState<
@@ -117,26 +116,6 @@ function DashboardContent() {
     const s = seconds % 60;
     return h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
-
-  // Load dashboard from URL parameter
-  useEffect(() => {
-    const dashboardId = searchParams?.get("dashboard");
-    if (dashboardId && !selectedDashboard) {
-      // Load dashboards from localStorage to find the selected one
-      const savedDashboards = localStorage.getItem("klt-dashboards");
-      if (savedDashboards) {
-        try {
-          const parsed: DashboardToken[] = JSON.parse(savedDashboards);
-          const dashboard = parsed.find((d) => d.id === dashboardId);
-          if (dashboard) {
-            setSelectedDashboard(dashboard);
-          }
-        } catch (error) {
-          console.error("Failed to parse saved dashboards:", error);
-        }
-      }
-    }
-  }, [searchParams, selectedDashboard, setSelectedDashboard]);
 
   // Load from localStorage on mount using dashboard-specific key
   useEffect(() => {
@@ -523,8 +502,6 @@ function DashboardContent() {
           {/* Debug info */}
           {selectedDashboard && (
             <span className="text-xs text-orange-500 ml-auto">
-              {/* VUs: {currentVUCount} | Status:{" "}
-              {dashboardStopTimes[dashboardKey] ? "Completed" : "Running"} | */}
               Dashboard: {selectedDashboard.id}
             </span>
           )}
@@ -558,10 +535,46 @@ function DashboardContent() {
   );
 }
 
+// Separate component to handle search params
+function DashboardWithSearchParams() {
+  const { selectedDashboard, setSelectedDashboard } = useDashboard();
+  const searchParams = useSearchParams();
+
+  // Load dashboard from URL parameter
+  useEffect(() => {
+    const dashboardId = searchParams?.get("dashboard");
+    if (dashboardId && !selectedDashboard) {
+      // Load dashboards from localStorage to find the selected one
+      const savedDashboards = localStorage.getItem("klt-dashboards");
+      if (savedDashboards) {
+        try {
+          const parsed: DashboardToken[] = JSON.parse(savedDashboards);
+          const dashboard = parsed.find((d) => d.id === dashboardId);
+          if (dashboard) {
+            setSelectedDashboard(dashboard);
+          }
+        } catch (error) {
+          console.error("Failed to parse saved dashboards:", error);
+        }
+      }
+    }
+  }, [searchParams, selectedDashboard, setSelectedDashboard]);
+
+  return <DashboardContent />;
+}
+
 export default function HomePage() {
   return (
     <DashboardProvider>
-      <DashboardContent />
+      <Suspense
+        fallback={
+          <div className="flex h-screen items-center justify-center">
+            <div className="text-orange-900">Loading dashboard...</div>
+          </div>
+        }
+      >
+        <DashboardWithSearchParams />
+      </Suspense>
     </DashboardProvider>
   );
 }
