@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 // Context for sidebar state
 type SidebarContextProps = {
@@ -45,8 +45,9 @@ export function Sidebar({
 
   return (
     <div
+      data-sidebar
       className={cn(
-        "bg-orange-50 border-r border-orange-200 transition-all duration-300",
+        "bg-sidebar border-r border-sidebar-border transition-all duration-300",
         isOpen ? "w-64" : "w-16",
         className
       )}
@@ -65,7 +66,7 @@ export function SidebarHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("p-4 border-b border-orange-200", className)}>
+    <div className={cn("p-4 border-b border-sidebar-border", className)}>
       {children}
     </div>
   );

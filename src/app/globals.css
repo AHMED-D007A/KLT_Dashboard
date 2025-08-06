@@ -44,37 +44,37 @@
   --radius-xl: calc(var(--radius) + 4px);
   
   /* Base color values - Light orange background */
-  --card: oklch(1.00 0 0);
-  --card-foreground: oklch(0.32 0 0);
-  --popover: oklch(1.00 0 0);
-  --popover-foreground: oklch(0.32 0 0);
-  --primary: oklch(0.65 0.21 35.00); /* Orange color */
+  --card: oklch(0.995 0.01 25.00);
+  --card-foreground: oklch(0.15 0.01 25.00);
+  --popover: oklch(0.995 0.01 25.00);
+  --popover-foreground: oklch(0.15 0.01 25.00);
+  --primary: oklch(0.65 0.21 25.00); /* Orange color */
   --primary-foreground: oklch(1.00 0 0);
-  --secondary: oklch(0.97 0.00 264.54);
-  --secondary-foreground: oklch(0.45 0.03 256.80);
-  --muted: oklch(0.98 0.00 247.84);
-  --muted-foreground: oklch(0.55 0.02 264.36);
-  --accent: oklch(0.91 0.02 243.82);
-  --accent-foreground: oklch(0.38 0.14 265.52);
+  --secondary: oklch(0.97 0.015 28.00);
+  --secondary-foreground: oklch(0.20 0.02 25.00);
+  --muted: oklch(0.96 0.015 30.00);
+  --muted-foreground: oklch(0.45 0.02 25.00);
+  --accent: oklch(0.94 0.02 28.00);
+  --accent-foreground: oklch(0.20 0.02 25.00);
   --destructive: oklch(0.64 0.21 25.33);
-  --border: oklch(0.90 0.01 247.88);
-  --input: oklch(0.97 0.00 264.54);
-  --ring: oklch(0.65 0.21 35.00); /* Orange ring to match primary */
-  --chart-1: oklch(0.65 0.21 35.00); /* Orange as main chart color */
-  --chart-2: oklch(0.79 0.09 35.96);
+  --border: oklch(0.90 0.015 28.00);
+  --input: oklch(0.97 0.015 28.00);
+  --ring: oklch(0.65 0.21 25.00); /* Orange ring to match primary */
+  --chart-1: oklch(0.70 0.21 35.00); /* Brighter orange chart color for dark mode */
+  --chart-2: oklch(0.77 0.09 34.19);
   --chart-3: oklch(0.58 0.08 254.16);
   --chart-4: oklch(0.50 0.08 259.49);
   --chart-5: oklch(0.42 0.10 264.03);
-  --sidebar: oklch(0.90 0.00 258.33);
-  --sidebar-foreground: oklch(0.32 0 0);
-  --sidebar-primary: oklch(0.65 0.21 35.00); /* Orange sidebar primary */
+  --sidebar: oklch(0.18 0.04 35.00);
+  --sidebar-foreground: oklch(0.15 0.01 25.00);
+  --sidebar-primary: oklch(0.65 0.21 25.00); /* Orange sidebar primary */
   --sidebar-primary-foreground: oklch(1.00 0 0);
-  --sidebar-accent: oklch(0.91 0.02 243.82);
-  --sidebar-accent-foreground: oklch(0.38 0.14 265.52);
-  --sidebar-border: oklch(0.93 0.01 264.53);
-  --sidebar-ring: oklch(0.65 0.21 35.00); /* Orange sidebar ring */
-  --background: oklch(0.97 0.03 35.00); /* Light orange background */
-  --foreground: oklch(0.25 0.02 25.00); /* Darker text for better contrast */
+  --sidebar-accent: oklch(0.95 0.025 30.00);
+  --sidebar-accent-foreground: oklch(0.20 0.02 25.00);
+  --sidebar-border: oklch(0.92 0.02 28.00);
+  --sidebar-ring: oklch(0.65 0.21 25.00); /* Orange sidebar ring */
+  --background: oklch(0.99 0.02 25.00); /* Very light orange background */
+  --foreground: oklch(0.15 0.01 25.00); /* Darker text for better contrast */
 }
 
 .dark {
@@ -117,8 +117,15 @@
   }
 
   body {
-    background-color: var(--background);
+    background: linear-gradient(135deg, 
+      oklch(0.99 0.02 20.00) 0%, 
+      oklch(0.985 0.025 25.00) 25%, 
+      oklch(0.99 0.02 30.00) 50%, 
+      oklch(0.985 0.025 35.00) 75%, 
+      oklch(0.99 0.02 40.00) 100%);
+    background-attachment: fixed;
     color: var(--foreground);
     overscroll-behavior: none;
+    min-height: 100vh;
   }
 }

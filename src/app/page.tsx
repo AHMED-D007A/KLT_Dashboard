@@ -140,19 +140,30 @@ function DashboardContent() {
     }
   }, [selectedDashboard?.id]);
 
-  // Check if dashboard should be marked as completed based on elapsed time vs target duration
+  // Check if server is still live by attempting a health check
+  const checkServerHealth = async (url: string): Promise<boolean> => {
+    try {
+      const response = await fetch(url, { 
+        cache: "no-store",
+        signal: AbortSignal.timeout(3000) // 3 second timeout
+      });
+      return response.ok;
+    } catch (error) {
+      console.log(`Server health check failed for ${url}:`, error);
+      return false;
+    }
+  };
+
+  // Check if dashboard should be marked as completed based on server availability
   useEffect(() => {
     if (
       !selectedDashboard?.id ||
       !selectedDashboard?.created_at ||
-      !selectedDashboard?.load_options?.Duration
+      !selectedDashboard?.url
     )
       return;
 
     const dashboardKey = selectedDashboard.id;
-    const targetDurationSeconds = parseDurationToSeconds(
-      selectedDashboard.load_options.Duration
-    );
 
     // Only check if dashboard is not already stopped and has a close time
     if (
@@ -163,30 +174,40 @@ function DashboardContent() {
     }
 
     if (dashboardCloseTimes[dashboardKey]) {
-      // Calculate current elapsed time
-      const start = new Date(selectedDashboard.created_at).getTime();
-      const now = Date.now();
-      const elapsedSeconds = Math.max(0, Math.floor((now - start) / 1000));
+      // Check server health to determine if we should use saved close time
+      const checkAndUpdateStatus = async () => {
+        const isServerLive = await checkServerHealth(selectedDashboard.url);
+        
+        if (!isServerLive) {
+          // Server is not responding, use the saved close time as final time
+          const savedCloseTime = dashboardCloseTimes[dashboardKey];
+          setDashboardStopTimes((prev) => ({
+            ...prev,
+            [dashboardKey]: savedCloseTime,
+          }));
 
-      if (elapsedSeconds >= targetDurationSeconds) {
-        // Use the saved close time as the final stop time
-        const savedCloseTime = dashboardCloseTimes[dashboardKey];
-        setDashboardStopTimes((prev) => ({
-          ...prev,
-          [dashboardKey]: savedCloseTime,
-        }));
+          // Clear the close time since we've now marked it as completed
+          setDashboardCloseTimes((prev) => {
+            const updated = { ...prev };
+            delete updated[dashboardKey];
+            return updated;
+          });
 
-        // Clear the close time since we've now marked it as completed
-        setDashboardCloseTimes((prev) => {
-          const updated = { ...prev };
-          delete updated[dashboardKey];
-          return updated;
-        });
+          console.log(
+            `Dashboard ${dashboardKey} marked as completed (server offline) with saved close time: ${savedCloseTime}`
+          );
+        } else {
+          console.log(
+            `Dashboard ${dashboardKey} server is still live, continuing to update elapsed time`
+          );
+        }
+      };
 
-        console.log(
-          `Dashboard ${dashboardKey} marked as completed with saved close time: ${savedCloseTime}`
-        );
-      }
+      // Check server health immediately and then every 10 seconds
+      checkAndUpdateStatus();
+      const healthCheckInterval = setInterval(checkAndUpdateStatus, 10000);
+
+      return () => clearInterval(healthCheckInterval);
     }
   }, [selectedDashboard, dashboardStopTimes, dashboardCloseTimes]);
 
