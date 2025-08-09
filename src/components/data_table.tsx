@@ -28,6 +28,24 @@ function getP95(arr: number[] | undefined): string {
   return p95Ms.toFixed(2);
 }
 
+function getP90(arr: number[] | undefined): string {
+  if (!Array.isArray(arr) || arr.length === 0) return "-";
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.floor(0.90 * (sorted.length - 1));
+  const p90Ns = sorted[idx];
+  const p90Ms = p90Ns / 1_000_000;
+  return p90Ms.toFixed(2);
+}
+
+function getP99(arr: number[] | undefined): string {
+  if (!Array.isArray(arr) || arr.length === 0) return "-";
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.floor(0.99 * (sorted.length - 1));
+  const p99Ns = sorted[idx];
+  const p99Ms = p99Ns / 1_000_000;
+  return p99Ms.toFixed(2);
+}
+
 function formatMB(bytes: number | undefined): string {
   if (typeof bytes !== "number" || isNaN(bytes)) return "-";
   return (bytes / (1024 * 1024)).toFixed(2);
@@ -117,24 +135,21 @@ export function DataTable({ data: initialData }: DataTableProps) {
   }, [originalData]);
 
   React.useEffect(() => {
-    if (view === "steps") {
+    if (view === "virtual-users") {
+      setVuData(originalData);
+    } else if (view === "steps") {
       setStepsData(aggregatedSteps);
     }
   }, [view, aggregatedSteps]);
 
   // Columns for Virtual Users
   const vuColumns = [
-    { accessorKey: "vu_id", header: "VU ID" },
-    { accessorKey: "ts_exec_count", header: "TS Exec Count" },
-    { accessorKey: "ts_exec_failure", header: "TS Exec Failure" },
-    {
-      accessorKey: "ts_exec_time",
-      header: "Avg TS Exec Time (ms)",
-      cell: ({ row }: { row: { original: VUReport } }) => getAverageMS(row.original.ts_exec_time),
-    },
+    { accessorKey: "vu_id", header: "ID" },
+    { accessorKey: "ts_exec_count", header: "TSExecCount" },
+    { accessorKey: "ts_exec_failure", header: "TSExecFailure" },
     {
       accessorKey: "steps",
-      header: "Step Exec Count",
+      header: "StepExecCount",
       cell: ({ row }: { row: { original: VUReport } }) =>
         Array.isArray(row.original.steps)
           ? row.original.steps.reduce(
@@ -143,6 +158,26 @@ export function DataTable({ data: initialData }: DataTableProps) {
             )
           : "-",
     },
+    {
+      accessorKey: "ts_exec_time",
+      header: "AvgTSExecTime(ms)",
+      cell: ({ row }: { row: { original: VUReport } }) => getAverageMS(row.original.ts_exec_time),
+    },
+    {
+      accessorKey: "ts_exec_time_p90",
+      header: "P90TSExecTime(ms)",
+      cell: ({ row }: { row: { original: VUReport } }) => getP90(row.original.ts_exec_time),
+    },
+    {
+      accessorKey: "ts_exec_time_p95",
+      header: "P95TSExecTime(ms)",
+      cell: ({ row }: { row: { original: VUReport } }) => getP95(row.original.ts_exec_time),
+    },
+    {
+      accessorKey: "ts_exec_time_p99",
+      header: "P99TSExecTime(ms)",
+      cell: ({ row }: { row: { original: VUReport } }) => getP99(row.original.ts_exec_time),
+    },
   ];
 
   // Columns for Steps
@@ -150,29 +185,29 @@ export function DataTable({ data: initialData }: DataTableProps) {
     { accessorKey: "step_name", header: "Step Name" },
     {
       accessorKey: "step_count",
-      header: "Step Count (All VUs)",
+      header: "Count(All VUs)",
       cell: ({ row }: { row: { original: AggregatedStepReport } }) => row.original.step_count ?? "-",
     },
     {
       accessorKey: "step_failure",
-      header: "Step Failure (All VUs)",
+      header: "Failure(All VUs)",
       cell: ({ row }: { row: { original: AggregatedStepReport } }) => row.original.step_failure ?? "-",
     },
     {
       accessorKey: "step_bytes_in",
-      header: "Bytes In (MB)",
+      header: "BytesIn(MB)",
       cell: ({ row }: { row: { original: AggregatedStepReport } }) =>
         formatMB(row.original.step_bytes_in),
     },
     {
       accessorKey: "step_bytes_out",
-      header: "Bytes Out (MB)",
+      header: "BytesOut (MB)",
       cell: ({ row }: { row: { original: AggregatedStepReport } }) =>
         formatMB(row.original.step_bytes_out),
     },
     {
       accessorKey: "step_response_time",
-      header: "Avg Step Response Time (ms)",
+      header: "AvgResponseTime(ms)",
       cell: ({ row }: { row: { original: AggregatedStepReport } }) => {
         const avgs = row.original.step_response_time_averages;
         if (!Array.isArray(avgs) || avgs.length === 0) return "-";
@@ -182,9 +217,19 @@ export function DataTable({ data: initialData }: DataTableProps) {
       },
     },
     {
+      accessorKey: "p90",
+      header: "P90(ms)",
+      cell: ({ row }: { row: { original: AggregatedStepReport } }) => getP90(row.original.step_response_time),
+    },
+    {
       accessorKey: "p95",
-      header: "P95 (ms)",
+      header: "P95(ms)",
       cell: ({ row }: { row: { original: AggregatedStepReport } }) => getP95(row.original.step_response_time),
+    },
+    {
+      accessorKey: "p99",
+      header: "P99(ms)",
+      cell: ({ row }: { row: { original: AggregatedStepReport } }) => getP99(row.original.step_response_time),
     },
   ];
 

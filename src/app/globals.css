@@ -73,7 +73,7 @@
   --sidebar-accent-foreground: oklch(0.20 0.02 25.00);
   --sidebar-border: oklch(0.92 0.02 28.00);
   --sidebar-ring: oklch(0.65 0.21 25.00); /* Orange sidebar ring */
-  --background: oklch(0.99 0.02 25.00); /* Very light orange background */
+  --background: oklch(0.99 0.02 25.00); /* Even lighter orange background */
   --foreground: oklch(0.15 0.01 25.00); /* Darker text for better contrast */
 }
 
@@ -117,15 +117,15 @@
   }
 
   body {
-    background: linear-gradient(135deg, 
-      oklch(0.99 0.02 20.00) 0%, 
-      oklch(0.985 0.025 25.00) 25%, 
-      oklch(0.99 0.02 30.00) 50%, 
-      oklch(0.985 0.025 35.00) 75%, 
-      oklch(0.99 0.02 40.00) 100%);
-    background-attachment: fixed;
+    background: 
+      radial-gradient(circle at 90% 30%, oklch(0.985 0.06 25.00) 0%, transparent 18%),
+      /* radial-gradient(circle at 50% 90%, oklch(0.988 0.05 30.00) 0%, transparent 18%), */
+      radial-gradient(circle at 80% 70%, oklch(0.990 0.04 20.00) 0%, transparent 18%),
+      /* radial-gradient(circle at 60% 50%, oklch(0.992 0.03 28.00) 0%, transparent 18%), */
+      radial-gradient(circle at 10% 85%, oklch(0.987 0.05 35.00) 0%, transparent 18%),
+      radial-gradient(circle at 25% 30%, oklch(0.987 0.05 35.00) 0%, transparent 24%),
+      linear-gradient(135deg, oklch(99.01% 0.0034 38.002) 0%, oklch(99.01% 0.0034 38.002) 100%);
     color: var(--foreground);
     overscroll-behavior: none;
-    min-height: 100vh;
   }
 }
