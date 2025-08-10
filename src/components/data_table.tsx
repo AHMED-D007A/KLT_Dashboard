@@ -53,9 +53,10 @@ function formatMB(bytes: number | undefined): string {
 
 interface DataTableProps {
   data: VUReport[];
+  isCompleted?: boolean;
 }
 
-export function DataTable({ data: initialData }: DataTableProps) {
+export function DataTable({ data: initialData, isCompleted = false }: DataTableProps) {
   const [originalData, setOriginalData] = React.useState<VUReport[]>(() => initialData ?? []);
   const [view, setView] = React.useState<"virtual-users" | "steps">("virtual-users");
 
@@ -68,6 +69,12 @@ export function DataTable({ data: initialData }: DataTableProps) {
   });
 
   React.useEffect(() => {
+    // Skip updates if dashboard is completed
+    if (isCompleted) {
+      console.log("Dashboard is completed, skipping data table updates");
+      return;
+    }
+
     setOriginalData(initialData ?? []);
     setVuData(initialData ?? []);
     setStepsData(
@@ -75,9 +82,14 @@ export function DataTable({ data: initialData }: DataTableProps) {
         Array.isArray(vu.steps) ? vu.steps.map((step) => ({ ...step, vu_id: vu.vu_id })) : []
       )
     );
-  }, [initialData]);
+  }, [initialData, isCompleted]);
 
   React.useEffect(() => {
+    // Skip updates if dashboard is completed
+    if (isCompleted) {
+      return;
+    }
+
     if (view === "virtual-users") {
       setVuData(originalData);
     } else if (view === "steps") {
@@ -87,13 +99,14 @@ export function DataTable({ data: initialData }: DataTableProps) {
         )
       );
     }
-  }, [view, originalData]);
+  }, [view, originalData, isCompleted]);
 
   // Memoize steps aggregation
   const aggregatedSteps = React.useMemo<AggregatedStepReport[]>(() => {
     const stepMap: Record<string, AggregatedStepReport> = {};
     const stepAverages: Record<string, number[]> = {};
     
+    // Use current originalData regardless of completion status for aggregation
     originalData.forEach((vu) => {
       if (Array.isArray(vu.steps)) {
         vu.steps.forEach((step) => {
@@ -135,12 +148,17 @@ export function DataTable({ data: initialData }: DataTableProps) {
   }, [originalData]);
 
   React.useEffect(() => {
+    // Skip updates if dashboard is completed
+    if (isCompleted) {
+      return;
+    }
+
     if (view === "virtual-users") {
       setVuData(originalData);
     } else if (view === "steps") {
       setStepsData(aggregatedSteps);
     }
-  }, [view, aggregatedSteps]);
+  }, [view, aggregatedSteps, isCompleted]);
 
   // Columns for Virtual Users
   const vuColumns = [

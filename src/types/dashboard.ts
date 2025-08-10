@@ -78,6 +78,8 @@ export const dashboardDataStorageSchema = z.object({
   dashboardData: z.record(z.string(), vuDataListSchema),
   chartHistories: z.record(z.string(), chartHistorySchema),
   dashboardStopTimes: z.record(z.string(), z.string()),
+  dashboardCloseTimes: z.record(z.string(), z.string()).optional(),
+  dashboardOpenedStatus: z.record(z.string(), z.boolean()).optional(),
 });
 
 // Infer TypeScript types from schemas

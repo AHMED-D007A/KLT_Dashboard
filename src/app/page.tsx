@@ -25,6 +25,7 @@ type DashboardStorage = {
   chartHistories: Record<string, ChartHistory>;
   dashboardStopTimes: Record<string, string>;
   dashboardCloseTimes: Record<string, string>;
+  dashboardOpenedStatus: Record<string, boolean>;
 };
 
 function DashboardContent() {
@@ -43,6 +44,12 @@ function DashboardContent() {
   const [dashboardCloseTimes, setDashboardCloseTimes] = useState<
     Record<string, string>
   >({});
+  const [dashboardOpenedStatus, setDashboardOpenedStatus] = useState<
+    Record<string, boolean>
+  >({});
+
+  // Track if localStorage has been loaded for the current dashboard
+  const [localStorageLoaded, setLocalStorageLoaded] = useState(false);
 
   const dashboardKey = selectedDashboard?.id || "";
   const lastGoodData = dashboardData[dashboardKey] || [];
@@ -68,6 +75,7 @@ function DashboardContent() {
   const chartHistoriesRef = useRef(chartHistories);
   const dashboardStopTimesRef = useRef(dashboardStopTimes);
   const dashboardCloseTimesRef = useRef(dashboardCloseTimes);
+  const dashboardOpenedStatusRef = useRef(dashboardOpenedStatus);
 
   useEffect(() => {
     dashboardDataRef.current = dashboardData;
@@ -85,29 +93,13 @@ function DashboardContent() {
     dashboardCloseTimesRef.current = dashboardCloseTimes;
   }, [dashboardCloseTimes]);
 
+  useEffect(() => {
+    dashboardOpenedStatusRef.current = dashboardOpenedStatus;
+  }, [dashboardOpenedStatus]);
+
   // Helper function to get dashboard-specific localStorage key
   const getDashboardSpecificKey = (baseKey: string, dashboardId: string) =>
     `${baseKey}-dashboard-${dashboardId}`;
-
-  // Helper function to parse duration string to seconds
-  const parseDurationToSeconds = (duration: string): number => {
-    const match = duration.match(/(\d+)([smh])/);
-    if (!match) return 0;
-
-    const value = parseInt(match[1]);
-    const unit = match[2];
-
-    switch (unit) {
-      case "s":
-        return value;
-      case "m":
-        return value * 60;
-      case "h":
-        return value * 3600;
-      default:
-        return 0;
-    }
-  };
 
   // Helper function to format seconds to duration string
   const formatSecondsToDuration = (seconds: number): string => {
@@ -119,7 +111,10 @@ function DashboardContent() {
 
   // Load from localStorage on mount using dashboard-specific key
   useEffect(() => {
-    if (!selectedDashboard?.id) return;
+    if (!selectedDashboard?.id) {
+      setLocalStorageLoaded(false);
+      return;
+    }
 
     try {
       const dashboardSpecificKey = getDashboardSpecificKey(
@@ -133,12 +128,44 @@ function DashboardContent() {
         setChartHistories(data.chartHistories || {});
         setDashboardStopTimes(data.dashboardStopTimes || {});
         setDashboardCloseTimes(data.dashboardCloseTimes || {}); // Load close times
+        setDashboardOpenedStatus(data.dashboardOpenedStatus || {}); // Load opened status
         console.log(`Loaded data for dashboard: ${selectedDashboard.id}`);
       }
     } catch (error) {
       console.error("Failed to load from localStorage:", error);
+    } finally {
+      // Mark localStorage as loaded regardless of success/failure
+      setLocalStorageLoaded(true);
     }
   }, [selectedDashboard?.id]);
+
+  // Mark dashboard as opened when first selected
+  useEffect(() => {
+    if (!selectedDashboard?.id) return;
+
+    const dashboardKey = selectedDashboard.id;
+    
+    // Check if this dashboard has never been opened before
+    if (!dashboardOpenedStatus[dashboardKey]) {
+      setDashboardOpenedStatus((prev) => ({
+        ...prev,
+        [dashboardKey]: true,
+      }));
+      console.log(`Marked dashboard ${dashboardKey} as opened for the first time`);
+      
+      // Check server health immediately for first-time opened dashboards
+      checkServerHealth(selectedDashboard.url).then((isServerLive) => {
+        if (!isServerLive) {
+          // Server is down on first open, mark with "0s" complete time
+          setDashboardStopTimes((prev) => ({
+            ...prev,
+            [dashboardKey]: "0s",
+          }));
+          console.log(`Dashboard ${dashboardKey} first opened with server down - marked as "0s" complete time`);
+        }
+      });
+    }
+  }, [selectedDashboard?.id, dashboardOpenedStatus, selectedDashboard?.url]);
 
   // Check if server is still live by attempting a health check
   const checkServerHealth = async (url: string): Promise<boolean> => {
@@ -166,10 +193,7 @@ function DashboardContent() {
     const dashboardKey = selectedDashboard.id;
 
     // Only check if dashboard is not already stopped and has a close time
-    if (
-      dashboardStopTimes[dashboardKey] &&
-      dashboardStopTimes[dashboardKey] !== "0s"
-    ) {
+    if (dashboardStopTimes[dashboardKey]) {
       return; // Already stopped
     }
 
@@ -221,6 +245,7 @@ function DashboardContent() {
         chartHistories,
         dashboardStopTimes,
         dashboardCloseTimes, // Include close times in storage
+        dashboardOpenedStatus, // Include opened status in storage
       };
       const dashboardSpecificKey = getDashboardSpecificKey(
         "dashboard-storage",
@@ -235,6 +260,7 @@ function DashboardContent() {
     chartHistories,
     dashboardStopTimes,
     dashboardCloseTimes,
+    dashboardOpenedStatus,
     selectedDashboard?.id,
   ]);
 
@@ -246,7 +272,7 @@ function DashboardContent() {
       // Only save close time if dashboard is not already stopped
       const currentStopTime =
         dashboardStopTimesRef.current[selectedDashboard.id];
-      if (currentStopTime && currentStopTime !== "0s") {
+      if (currentStopTime) {
         return; // Already stopped, don't save close time
       }
 
@@ -273,6 +299,11 @@ function DashboardContent() {
           data.dashboardCloseTimes = {
             ...data.dashboardCloseTimes,
             [selectedDashboard.id]: elapsedString,
+          };
+          // Ensure opened status is preserved
+          data.dashboardOpenedStatus = {
+            ...data.dashboardOpenedStatus,
+            [selectedDashboard.id]: true,
           };
           localStorage.setItem(dashboardSpecificKey, JSON.stringify(data));
         }
@@ -367,13 +398,17 @@ function DashboardContent() {
   useEffect(() => {
     if (!selectedDashboard?.url) return;
 
-    // Check if already stopped
-    const isStopped =
-      dashboardStopTimes[dashboardKey] &&
-      dashboardStopTimes[dashboardKey] !== "0s";
+    // Wait for localStorage to be loaded before starting polling
+    if (!localStorageLoaded) {
+      console.log(`Waiting for localStorage to load for dashboard: ${dashboardKey}`);
+      return;
+    }
+
+    // Check if already stopped - use current state value
+    const isStopped = !!dashboardStopTimes[dashboardKey];
     if (isStopped) {
       console.log(
-        `Dashboard ${dashboardKey} is already stopped. Not polling. (Dashboard: ${selectedDashboard?.id})`
+        `Dashboard ${dashboardKey} is already completed. Not starting polling. (Dashboard: ${selectedDashboard?.id})`
       );
       return;
     }
@@ -384,9 +419,9 @@ function DashboardContent() {
     const MAX_FAILS = 3;
 
     const getData = async () => {
-      // Re-check stopped state on each call
-      const currentStopTime = dashboardStopTimesRef.current[dashboardKey];
-      if (currentStopTime && currentStopTime !== "0s") {
+      // Re-check stopped state on each call using both current state and ref
+      const currentStopTime = dashboardStopTimesRef.current[dashboardKey] || dashboardStopTimes[dashboardKey];
+      if (currentStopTime) {
         console.log(
           `Dashboard ${dashboardKey} was stopped during polling. (Dashboard: ${selectedDashboard?.id})`
         );
@@ -425,7 +460,18 @@ function DashboardContent() {
         if (!dashboardStopTimesRef.current[dashboardKey]) {
           // Calculate elapsed time when stopped
           let elapsed = "0s";
-          if (selectedDashboard?.created_at) {
+          
+          // Check if dashboard was never opened before (first time opening and server down)
+          const wasOpenedBefore = dashboardOpenedStatusRef.current[dashboardKey];
+          
+          if (!wasOpenedBefore) {
+            // Dashboard never opened before and server is down - use "0s"
+            elapsed = "0s";
+            console.log(
+              `Dashboard ${dashboardKey} never opened before and server is down - using "0s" as complete time`
+            );
+          } else if (selectedDashboard?.created_at) {
+            // Dashboard was opened before, calculate actual elapsed time
             const start = new Date(selectedDashboard.created_at).getTime();
             const now = Date.now();
             const diff = Math.max(0, Math.floor((now - start) / 1000));
@@ -464,7 +510,7 @@ function DashboardContent() {
         );
       }
     };
-  }, [selectedDashboard, dashboardKey]);
+  }, [selectedDashboard, dashboardKey, dashboardStopTimes, localStorageLoaded]);
 
   // Handle dashboard deletion
   const handleDashboardDeleted = (deletedDashboardId: string) => {
@@ -493,6 +539,12 @@ function DashboardContent() {
       return updated;
     }); // Also clean up close times
 
+    setDashboardOpenedStatus((prev) => {
+      const updated = { ...prev };
+      delete updated[deletedDashboardId];
+      return updated;
+    }); // Also clean up opened status
+
     // If the deleted dashboard was selected, clear the selection
     if (selectedDashboard?.id === deletedDashboardId) {
       setSelectedDashboard(null);
@@ -504,6 +556,7 @@ function DashboardContent() {
   };
 
   const currentVUCount = lastGoodData.length;
+  const isCompleted = !!dashboardStopTimes[dashboardKey];
 
   return (
     <SidebarProvider>
@@ -533,12 +586,7 @@ function DashboardContent() {
           <div className="@container/main flex flex-col gap-4 md:gap-6">
             <SectionCards
               lttoken={selectedDashboard ?? undefined}
-              stopped={
-                !!(
-                  dashboardStopTimes[dashboardKey] &&
-                  dashboardStopTimes[dashboardKey] !== "0s"
-                )
-              }
+              stopped={isCompleted}
               stopTime={dashboardStopTimes[dashboardKey]}
               currentVUCount={currentVUCount}
             />
@@ -547,8 +595,9 @@ function DashboardContent() {
               vuData={lastGoodData}
               chartHistory={chartHistory}
               setChartHistory={setChartHistory}
+              isCompleted={isCompleted}
             />
-            <DataTable data={lastGoodData} />
+            <DataTable data={lastGoodData} isCompleted={isCompleted} />
           </div>
         </div>
       </SidebarInset>
