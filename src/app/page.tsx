@@ -129,7 +129,9 @@ function DashboardContent() {
         setDashboardStopTimes(data.dashboardStopTimes || {});
         setDashboardCloseTimes(data.dashboardCloseTimes || {}); // Load close times
         setDashboardOpenedStatus(data.dashboardOpenedStatus || {}); // Load opened status
-        console.log(`Loaded data for dashboard: ${selectedDashboard.id}`);
+        console.log(`✅ Loaded data for dashboard: ${selectedDashboard.id} (${Object.keys(data.dashboardData || {}).length} dashboards)`);
+      } else {
+        console.log(`ℹ️ No stored data found for dashboard: ${selectedDashboard.id}`);
       }
     } catch (error) {
       console.error("Failed to load from localStorage:", error);
@@ -139,13 +141,13 @@ function DashboardContent() {
     }
   }, [selectedDashboard?.id]);
 
-  // Mark dashboard as opened when first selected
+  // Mark dashboard as opened when first selected (ONLY after localStorage has loaded)
   useEffect(() => {
-    if (!selectedDashboard?.id) return;
+    if (!selectedDashboard?.id || !localStorageLoaded) return;
 
     const dashboardKey = selectedDashboard.id;
     
-    // Check if this dashboard has never been opened before
+    // Check if this dashboard has never been opened before (NOW we have the real data from localStorage)
     if (!dashboardOpenedStatus[dashboardKey]) {
       setDashboardOpenedStatus((prev) => ({
         ...prev,
@@ -165,7 +167,7 @@ function DashboardContent() {
         }
       });
     }
-  }, [selectedDashboard?.id, dashboardOpenedStatus, selectedDashboard?.url]);
+  }, [selectedDashboard?.id, dashboardOpenedStatus, selectedDashboard?.url, localStorageLoaded]);
 
   // Check if server is still live by attempting a health check
   const checkServerHealth = async (url: string): Promise<boolean> => {
@@ -186,7 +188,8 @@ function DashboardContent() {
     if (
       !selectedDashboard?.id ||
       !selectedDashboard?.created_at ||
-      !selectedDashboard?.url
+      !selectedDashboard?.url ||
+      !localStorageLoaded // Wait for localStorage to load first
     )
       return;
 
@@ -233,7 +236,7 @@ function DashboardContent() {
 
       return () => clearInterval(healthCheckInterval);
     }
-  }, [selectedDashboard, dashboardStopTimes, dashboardCloseTimes]);
+  }, [selectedDashboard, dashboardStopTimes, dashboardCloseTimes, localStorageLoaded]);
 
   // Save to localStorage whenever data changes using dashboard-specific key
   useEffect(() => {
@@ -404,11 +407,15 @@ function DashboardContent() {
       return;
     }
 
-    // Check if already stopped - use current state value
+    // COMPREHENSIVE COMPLETION CHECK - Multiple layers of protection
     const isStopped = !!dashboardStopTimes[dashboardKey];
-    if (isStopped) {
+    const isStoppedInRef = !!dashboardStopTimesRef.current[dashboardKey];
+    const hasCompletedData = !!dashboardData[dashboardKey]?.length && (isStopped || isStoppedInRef);
+    
+    if (isStopped || isStoppedInRef || hasCompletedData) {
       console.log(
-        `Dashboard ${dashboardKey} is already completed. Not starting polling. (Dashboard: ${selectedDashboard?.id})`
+        `🛑 Dashboard ${dashboardKey} is already completed. Not starting polling.`,
+        { isStopped, isStoppedInRef, hasCompletedData, dataLength: dashboardData[dashboardKey]?.length || 0 }
       );
       return;
     }
@@ -419,11 +426,23 @@ function DashboardContent() {
     const MAX_FAILS = 3;
 
     const getData = async () => {
-      // Re-check stopped state on each call using both current state and ref
+      // ROBUST CHECK: Re-check stopped state on each call using both current state and ref
+      // This prevents completed dashboards from getting new data even if polling somehow continues
       const currentStopTime = dashboardStopTimesRef.current[dashboardKey] || dashboardStopTimes[dashboardKey];
       if (currentStopTime) {
         console.log(
-          `Dashboard ${dashboardKey} was stopped during polling. (Dashboard: ${selectedDashboard?.id})`
+          `🛑 Dashboard ${dashboardKey} was stopped during polling. Stop time: ${currentStopTime} (Dashboard: ${selectedDashboard?.id})`
+        );
+        clearInterval(interval);
+        return;
+      }
+
+      // Additional safeguard: Check if this dashboard has any data and is marked as completed
+      const hasExistingData = dashboardDataRef.current[dashboardKey]?.length > 0;
+      const isMarkedCompleted = !!currentStopTime;
+      if (hasExistingData && isMarkedCompleted) {
+        console.log(
+          `🛑 Dashboard ${dashboardKey} has existing data and is completed. Preventing data overwrite. (Dashboard: ${selectedDashboard?.id})`
         );
         clearInterval(interval);
         return;
@@ -431,6 +450,17 @@ function DashboardContent() {
 
       try {
         const data = await fetchVUData(selectedDashboard.url);
+        
+        // FINAL CHECK: Before updating data, ensure dashboard is still active
+        const finalStopCheck = dashboardStopTimesRef.current[dashboardKey] || dashboardStopTimes[dashboardKey];
+        if (finalStopCheck) {
+          console.log(
+            `🛑 Dashboard ${dashboardKey} was completed while fetching. Discarding new data to preserve completed state.`
+          );
+          clearInterval(interval);
+          return;
+        }
+        
         if (isMounted) {
           if (Array.isArray(data) && data.length > 0) {
             setDashboardData((prev) => ({
@@ -438,6 +468,7 @@ function DashboardContent() {
               [dashboardKey]: data,
             }));
             failCount = 0;
+            console.log(`📊 Updated data for active dashboard ${dashboardKey} (${data.length} records)`);
           } else {
             failCount++;
             console.warn(

@@ -5,8 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:static": "next build && echo 'Static build complete! You can serve the out/ directory.'",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "serve:static": "NODE_ENV=production python3 -m http.server 3000 --directory out"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

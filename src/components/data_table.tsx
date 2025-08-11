@@ -69,12 +69,8 @@ export function DataTable({ data: initialData, isCompleted = false }: DataTableP
   });
 
   React.useEffect(() => {
-    // Skip updates if dashboard is completed
-    if (isCompleted) {
-      console.log("Dashboard is completed, skipping data table updates");
-      return;
-    }
-
+    // Always update data when initialData changes, regardless of completion status
+    console.log("DataTable updating with data:", initialData?.length || 0, "records");
     setOriginalData(initialData ?? []);
     setVuData(initialData ?? []);
     setStepsData(
@@ -82,14 +78,10 @@ export function DataTable({ data: initialData, isCompleted = false }: DataTableP
         Array.isArray(vu.steps) ? vu.steps.map((step) => ({ ...step, vu_id: vu.vu_id })) : []
       )
     );
-  }, [initialData, isCompleted]);
+  }, [initialData]); // Removed isCompleted dependency
 
   React.useEffect(() => {
-    // Skip updates if dashboard is completed
-    if (isCompleted) {
-      return;
-    }
-
+    // Always update view data when view or originalData changes
     if (view === "virtual-users") {
       setVuData(originalData);
     } else if (view === "steps") {
@@ -99,7 +91,7 @@ export function DataTable({ data: initialData, isCompleted = false }: DataTableP
         )
       );
     }
-  }, [view, originalData, isCompleted]);
+  }, [view, originalData]); // Removed isCompleted dependency
 
   // Memoize steps aggregation
   const aggregatedSteps = React.useMemo<AggregatedStepReport[]>(() => {
@@ -148,17 +140,13 @@ export function DataTable({ data: initialData, isCompleted = false }: DataTableP
   }, [originalData]);
 
   React.useEffect(() => {
-    // Skip updates if dashboard is completed
-    if (isCompleted) {
-      return;
-    }
-
+    // Always update view data when view or aggregatedSteps changes
     if (view === "virtual-users") {
       setVuData(originalData);
     } else if (view === "steps") {
       setStepsData(aggregatedSteps);
     }
-  }, [view, aggregatedSteps, isCompleted]);
+  }, [view, aggregatedSteps]); // Removed isCompleted dependency
 
   // Columns for Virtual Users
   const vuColumns = [

@@ -56,9 +56,9 @@ export function ChartAreaInteractive({
   React.useEffect(() => {
     if (!Array.isArray(vuData) || vuData.length === 0) return;
 
-    // Skip updates if dashboard is completed
-    if (isCompleted) {
-      console.log("Dashboard is completed, skipping chart updates");
+    // For completed dashboards, only update chart history if it's empty (first load)
+    if (isCompleted && chartHistory.overall.length > 0) {
+      console.log("Dashboard is completed and chart history exists, skipping chart updates");
       return;
     }
 
