@@ -124,7 +124,7 @@
       /* radial-gradient(circle at 60% 50%, oklch(0.992 0.03 28.00) 0%, transparent 18%), */
       radial-gradient(circle at 10% 85%, oklch(0.987 0.05 35.00) 0%, transparent 18%),
       radial-gradient(circle at 25% 30%, oklch(0.987 0.05 35.00) 0%, transparent 24%),
-      linear-gradient(135deg, oklch(99.01% 0.0034 38.002) 0%, oklch(99.01% 0.0034 38.002) 100%);
+      linear-gradient(135deg, oklch(100% 0.00011 271.152) 0%, oklch(100% 0.00011 271.152) 100%);
     color: var(--foreground);
     overscroll-behavior: none;
   }
