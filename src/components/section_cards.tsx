@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { AreaChartIcon } from "lucide-react";
 import { DashboardToken } from "@/types/dashboard";
 
 // Keep your existing interface - using 'lttoken' not 'dashboard'
@@ -11,12 +12,25 @@ interface SectionCardsProps {
   stopTime?: string;
 }
 
-function useElapsedTime(startTime: string | undefined, stopped: boolean = false) {
+function useElapsedTime(startTime: string | undefined, stopped: boolean = false, stopTime?: string) {
   const [elapsed, setElapsed] = useState("0s");
 
   useEffect(() => {
-    if (!startTime || stopped) return;
+    if (!startTime) return;
+    
+    // If stopped, use the stop time
+    if (stopped && stopTime) {
+      setElapsed(stopTime);
+      return;
+    }
+    
+    // If stopped but no stop time, show 0s
+    if (stopped) {
+      setElapsed("0s");
+      return;
+    }
 
+    // If not stopped, show real-time elapsed time
     const updateElapsed = () => {
       const start = new Date(startTime).getTime();
       const now = Date.now();
@@ -38,7 +52,7 @@ function useElapsedTime(startTime: string | undefined, stopped: boolean = false)
     updateElapsed();
     const interval = setInterval(updateElapsed, 1000);
     return () => clearInterval(interval);
-  }, [startTime, stopped]);
+  }, [startTime, stopped, stopTime]);
 
   return elapsed;
 }
@@ -49,7 +63,7 @@ export function SectionCards({
   stopped = false, 
   stopTime 
 }: SectionCardsProps) {
-  const elapsedTime = useElapsedTime(lttoken?.created_at, stopped);
+  const elapsedTime = useElapsedTime(lttoken?.created_at, stopped, stopTime);
 
   if (!lttoken) {
     return (
@@ -103,10 +117,13 @@ export function SectionCards({
       {/* Dashboard Info Header */}
       <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
         <div className="flex justify-between items-start">
-          <div>
-            <h2 className="text-xl font-semibold text-orange-900">{lttoken.title}</h2>
-            <p className="text-orange-700 text-sm mt-1">{lttoken.description}</p>
-            <p className="text-orange-600 text-xs mt-2">ID: {lttoken.id}</p>
+          <div className="flex items-center gap-3">
+            <AreaChartIcon className="h-10 w-10 text-orange-600" />
+            <div>
+              <h2 className="text-xl font-semibold text-orange-900">{lttoken.title}</h2>
+              <p className="text-orange-700 text-sm mt-1">{lttoken.description}</p>
+              <p className="text-orange-600 text-xs mt-2">ID: {lttoken.id}</p>
+            </div>
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
             stopped 

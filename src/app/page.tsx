@@ -13,6 +13,8 @@ import { DashboardProvider, useDashboard } from "@/context/dashboard_context";
 import { SectionCards } from "@/components/section_cards";
 import { DataTable } from "@/components/data_table";
 import { ChartAreaInteractive } from "@/components/chart_area_interactive";
+import { SecurityReportView } from "@/components/security_report_view";
+import { DashboardListPage } from "../components/dashboard_list_page";
 
 type ChartHistory = {
   overall: Array<{ timestamp: number; avg_latency: number }>;
@@ -30,6 +32,7 @@ type DashboardStorage = {
 
 function DashboardContent() {
   const { selectedDashboard, setSelectedDashboard } = useDashboard();
+  const [currentView, setCurrentView] = useState<"dashboard" | "security">("dashboard");
 
   // Store data for all dashboards (client-side only)
   const [dashboardData, setDashboardData] = useState<
@@ -195,18 +198,18 @@ function DashboardContent() {
 
     const dashboardKey = selectedDashboard.id;
 
-    // Only check if dashboard is not already stopped and has a close time
+    // Only check if dashboard is not already stopped
     if (dashboardStopTimes[dashboardKey]) {
       return; // Already stopped
     }
 
+    // Check if this dashboard was previously closed while server was running
     if (dashboardCloseTimes[dashboardKey]) {
-      // Check server health to determine if we should use saved close time
-      const checkAndUpdateStatus = async () => {
+      const checkServerAndHandleTiming = async () => {
         const isServerLive = await checkServerHealth(selectedDashboard.url);
         
         if (!isServerLive) {
-          // Server is not responding, use the saved close time as final time
+          // Server is down - use the saved close time as final time
           const savedCloseTime = dashboardCloseTimes[dashboardKey];
           setDashboardStopTimes((prev) => ({
             ...prev,
@@ -224,19 +227,70 @@ function DashboardContent() {
             `Dashboard ${dashboardKey} marked as completed (server offline) with saved close time: ${savedCloseTime}`
           );
         } else {
+          // Server is still live - clear the close time and let timer continue from actual elapsed time
+          setDashboardCloseTimes((prev) => {
+            const updated = { ...prev };
+            delete updated[dashboardKey];
+            return updated;
+          });
+          
           console.log(
-            `Dashboard ${dashboardKey} server is still live, continuing to update elapsed time`
+            `Dashboard ${dashboardKey} server is still live, clearing close time and continuing with real-time timer`
           );
         }
       };
 
-      // Check server health immediately and then every 10 seconds
-      checkAndUpdateStatus();
-      const healthCheckInterval = setInterval(checkAndUpdateStatus, 10000);
+      checkServerAndHandleTiming();
+    } else {
+      // No close time saved, check if server is available for first-time or normal operation
+      const checkInitialServerHealth = async () => {
+        const isServerLive = await checkServerHealth(selectedDashboard.url);
+        
+        if (!isServerLive) {
+          // Server is down and we haven't been tracking this dashboard
+          // Check if it was opened for the first time when server was down
+          if (dashboardOpenedStatus[dashboardKey]) {
+            // Was opened before, server went down - mark as completed with 0s
+            setDashboardStopTimes((prev) => ({
+              ...prev,
+              [dashboardKey]: "0s",
+            }));
+            console.log(`Dashboard ${dashboardKey} server went down - marked as "0s" complete time`);
+          } else {
+            // First time opening and server is down - mark as 0s
+            setDashboardStopTimes((prev) => ({
+              ...prev,
+              [dashboardKey]: "0s",
+            }));
+            console.log(`Dashboard ${dashboardKey} first opened with server down - marked as "0s" complete time`);
+          }
+        }
+      };
+
+      checkInitialServerHealth();
+      
+      // Set up periodic server health checks
+      const healthCheckInterval = setInterval(async () => {
+        const isServerLive = await checkServerHealth(selectedDashboard.url);
+        if (!isServerLive && !dashboardStopTimes[dashboardKey]) {
+          // Server went down while we were monitoring - calculate final time
+          const start = new Date(selectedDashboard.created_at).getTime();
+          const now = Date.now();
+          const elapsedSeconds = Math.max(0, Math.floor((now - start) / 1000));
+          const elapsedString = formatSecondsToDuration(elapsedSeconds);
+          
+          setDashboardStopTimes((prev) => ({
+            ...prev,
+            [dashboardKey]: elapsedString,
+          }));
+          
+          console.log(`Dashboard ${dashboardKey} server went down - final time: ${elapsedString}`);
+        }
+      }, 10000); // Check every 10 seconds
 
       return () => clearInterval(healthCheckInterval);
     }
-  }, [selectedDashboard, dashboardStopTimes, dashboardCloseTimes, localStorageLoaded]);
+  }, [selectedDashboard, dashboardStopTimes, dashboardCloseTimes, dashboardOpenedStatus, localStorageLoaded]);
 
   // Save to localStorage whenever data changes using dashboard-specific key
   useEffect(() => {
@@ -273,8 +327,7 @@ function DashboardContent() {
 
     const handleBeforeUnload = () => {
       // Only save close time if dashboard is not already stopped
-      const currentStopTime =
-        dashboardStopTimesRef.current[selectedDashboard.id];
+      const currentStopTime = dashboardStopTimesRef.current[selectedDashboard.id];
       if (currentStopTime) {
         return; // Already stopped, don't save close time
       }
@@ -285,7 +338,7 @@ function DashboardContent() {
         const elapsedSeconds = Math.max(0, Math.floor((now - start) / 1000));
         const elapsedString = formatSecondsToDuration(elapsedSeconds);
 
-        // Save the elapsed time at close
+        // Always save the elapsed time at close - logic on reopening will decide whether to use it
         setDashboardCloseTimes((prev) => ({
           ...prev,
           [selectedDashboard.id]: elapsedString,
@@ -303,7 +356,6 @@ function DashboardContent() {
             ...data.dashboardCloseTimes,
             [selectedDashboard.id]: elapsedString,
           };
-          // Ensure opened status is preserved
           data.dashboardOpenedStatus = {
             ...data.dashboardOpenedStatus,
             [selectedDashboard.id]: true,
@@ -595,6 +647,8 @@ function DashboardContent() {
         selectedDashboard={selectedDashboard}
         onSelectDashboard={setSelectedDashboard}
         onDashboardDeleted={handleDashboardDeleted}
+        currentView={currentView}
+        onViewChange={setCurrentView}
       />
 
       <SidebarInset>
@@ -602,7 +656,8 @@ function DashboardContent() {
         <header className="flex h-12 items-center gap-2 border-b px-4">
           <SidebarTrigger className="text-orange-900" />
           <h1 className="text-lg font-semibold text-orange-900">
-            {selectedDashboard ? selectedDashboard.title : "Select a Dashboard"}
+            KLT Dashboard
+            {currentView === "security" && " - Security Report"}
           </h1>
           {/* Debug info */}
           {selectedDashboard && (
@@ -614,22 +669,32 @@ function DashboardContent() {
 
         {/* Main Content */}
         <div className="p-6">
-          <div className="@container/main flex flex-col gap-4 md:gap-6">
-            <SectionCards
-              lttoken={selectedDashboard ?? undefined}
-              stopped={isCompleted}
-              stopTime={dashboardStopTimes[dashboardKey]}
-              currentVUCount={currentVUCount}
-            />
+          {currentView === "dashboard" ? (
+            <div className="@container/main flex flex-col gap-4 md:gap-6">
+              <SectionCards
+                lttoken={selectedDashboard ?? undefined}
+                stopped={isCompleted}
+                stopTime={dashboardStopTimes[dashboardKey]}
+                currentVUCount={currentVUCount}
+              />
 
-            <ChartAreaInteractive
-              vuData={lastGoodData}
-              chartHistory={chartHistory}
-              setChartHistory={setChartHistory}
-              isCompleted={isCompleted}
-            />
-            <DataTable data={lastGoodData} isCompleted={isCompleted} />
-          </div>
+              <ChartAreaInteractive
+                vuData={lastGoodData}
+                chartHistory={chartHistory}
+                setChartHistory={setChartHistory}
+                isCompleted={isCompleted}
+              />
+              <DataTable data={lastGoodData} isCompleted={isCompleted} />
+            </div>
+          ) : currentView === "security" && selectedDashboard?.security_report ? (
+            <SecurityReportView securityReport={selectedDashboard.security_report} />
+          ) : (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center text-orange-600">
+                <p>No security report available for this dashboard.</p>
+              </div>
+            </div>
+          )}
         </div>
       </SidebarInset>
     </SidebarProvider>
@@ -640,12 +705,58 @@ function DashboardContent() {
 function DashboardWithSearchParams() {
   const { selectedDashboard, setSelectedDashboard } = useDashboard();
   const searchParams = useSearchParams();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load dashboard from URL parameter
-  useEffect(() => {
-    const dashboardId = searchParams?.get("dashboard");
-    if (dashboardId && !selectedDashboard) {
-      // Load dashboards from localStorage to find the selected one
+  // Fetch dashboard token from server
+  const fetchDashboardToken = async (dashboardId: string) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch("http://localhost:2345/dashboards");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const dashboardToken = await response.json();
+      
+      // Validate that the fetched token matches the requested ID
+      if (dashboardToken.id === dashboardId) {
+        setSelectedDashboard(dashboardToken);
+        
+        // Update localStorage with the new dashboard
+        const savedDashboards = localStorage.getItem("klt-dashboards");
+        let dashboards: DashboardToken[] = [];
+        
+        if (savedDashboards) {
+          try {
+            dashboards = JSON.parse(savedDashboards);
+          } catch (error) {
+            console.error("Failed to parse saved dashboards:", error);
+          }
+        }
+        
+        // Add the new dashboard if it doesn't exist
+        const existingIndex = dashboards.findIndex(d => d.id === dashboardToken.id);
+        if (existingIndex >= 0) {
+          // Update existing dashboard
+          dashboards[existingIndex] = dashboardToken;
+        } else {
+          // Add new dashboard to the beginning
+          dashboards.unshift(dashboardToken);
+        }
+        
+        localStorage.setItem("klt-dashboards", JSON.stringify(dashboards));
+        console.log(`✅ Fetched and saved dashboard: ${dashboardToken.id}`);
+      } else {
+        throw new Error(`Dashboard ID mismatch: expected ${dashboardId}, got ${dashboardToken.id}`);
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboard token:", error);
+      setError(error instanceof Error ? error.message : "Failed to fetch dashboard");
+      
+      // Try to load from localStorage as fallback
       const savedDashboards = localStorage.getItem("klt-dashboards");
       if (savedDashboards) {
         try {
@@ -653,13 +764,60 @@ function DashboardWithSearchParams() {
           const dashboard = parsed.find((d) => d.id === dashboardId);
           if (dashboard) {
             setSelectedDashboard(dashboard);
+            console.log(`ℹ️ Loaded dashboard from localStorage: ${dashboardId}`);
           }
         } catch (error) {
           console.error("Failed to parse saved dashboards:", error);
         }
       }
+    } finally {
+      setLoading(false);
     }
-  }, [searchParams, selectedDashboard, setSelectedDashboard]);
+  };
+
+  // Load dashboard from URL parameter
+  useEffect(() => {
+    const dashboardId = searchParams?.get("dashboard");
+    if (dashboardId) {
+      // Check if we already have this dashboard loaded
+      if (selectedDashboard?.id === dashboardId) {
+        return; // Already loaded
+      }
+      
+      // Try to fetch the latest token from server first
+      fetchDashboardToken(dashboardId);
+    } else {
+      // Clear selected dashboard if no ID in URL
+      setSelectedDashboard(null);
+    }
+  }, [searchParams?.get("dashboard")]); // Only re-run when dashboard ID changes
+
+  // If no dashboard ID in URL, show home page
+  const dashboardId = searchParams?.get("dashboard");
+  if (!dashboardId) {
+    return <DashboardListPage />;
+  }
+
+  // Show loading state while fetching
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-orange-900">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  // Show error state if failed to fetch and no fallback
+  if (error && !selectedDashboard) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 mb-2">Failed to load dashboard</div>
+          <div className="text-sm text-gray-600">{error}</div>
+        </div>
+      </div>
+    );
+  }
 
   return <DashboardContent />;
 }

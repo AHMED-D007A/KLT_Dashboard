@@ -41,7 +41,44 @@ export const loadOptionsSchema = z.object({
   Thresholds: z.array(thresholdSchema).optional(),
 });
 
-// Dashboard Token Schema
+// Security Report Schemas
+export const securityResultSchema = z.object({
+  check_id: z.string(),
+  check_name: z.string(),
+  status: z.enum(["passed", "failed", "warning"]),
+  severity: z.string(),
+  description: z.string(),
+  details: z.string().optional(),
+  recommendation: z.string().optional(),
+  // Step information
+  step_name: z.string(),
+  step_method: z.string(),
+  step_url: z.string(),
+  status_code: z.number().int().optional(),
+  target: z.enum(["request", "response"]),
+});
+
+export const stepSecurityResultsSchema = z.object({
+  step_name: z.string(),
+  step_method: z.string(),
+  step_url: z.string(),
+  results: z.array(securityResultSchema),
+  passed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  warnings: z.number().int().nonnegative(),
+});
+
+export const securityReportSchema = z.object({
+  test_suite: z.string(),
+  timestamp: z.string(),
+  total_checks: z.number().int().nonnegative(),
+  passed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  warnings: z.number().int().nonnegative(),
+  steps: z.array(stepSecurityResultsSchema),
+  summary: z.record(z.string(), z.number().int().nonnegative()),
+});
+
 export const dashboardTokenSchema = z.object({
   id: z.string().min(1),
   url: z.string().url(),
@@ -49,6 +86,7 @@ export const dashboardTokenSchema = z.object({
   created_at: z.string(),
   description: z.string(),
   load_options: loadOptionsSchema,
+  security_report: securityReportSchema.optional(),
   end_at: z.string().optional(),
 });
 
@@ -88,6 +126,9 @@ export type VUReport = z.infer<typeof vuReportSchema>;
 export type LoadStage = z.infer<typeof loadStageSchema>;
 export type Threshold = z.infer<typeof thresholdSchema>;
 export type LoadOptions = z.infer<typeof loadOptionsSchema>;
+export type SecurityResult = z.infer<typeof securityResultSchema>;
+export type StepSecurityResults = z.infer<typeof stepSecurityResultsSchema>;
+export type SecurityReport = z.infer<typeof securityReportSchema>;
 export type DashboardToken = z.infer<typeof dashboardTokenSchema>;
 export type ChartDataPoint = z.infer<typeof chartDataPointSchema>;
 export type ChartOverallPoint = z.infer<typeof chartOverallPointSchema>;
