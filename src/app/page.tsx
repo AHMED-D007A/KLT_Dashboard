@@ -305,12 +305,22 @@ function DashboardContent() {
       const healthCheckInterval = setInterval(async () => {
         const isServerLive = await checkServerHealth(selectedDashboard.url);
         if (!isServerLive && !dashboardStopTimes[dashboardKey]) {
-          // Use saved close time if available (from navigation within session)
+          // Check if we have a saved close time from previous navigation
           const savedCloseTime = dashboardCloseTimes[dashboardKey];
-          const elapsedString = savedCloseTime || calculateElapsedTime(selectedDashboard.created_at);
+          
+          let elapsedString: string;
+          if (savedCloseTime) {
+            // Use the close time from when user navigated away
+            elapsedString = savedCloseTime;
+          } else {
+            // No close time exists - this means server stopped while actively viewing
+            // Use real-time calculation
+            elapsedString = calculateElapsedTime(selectedDashboard.created_at);
+          }
+          
           setDashboardStopped(dashboardKey, elapsedString);
           
-          // If we used a close time, clean it up
+          // Clean up close time if we used it
           if (savedCloseTime) {
             setDashboardCloseTimes((prev) => {
               const updated = { ...prev };
@@ -600,10 +610,11 @@ function DashboardContent() {
           const savedCloseTime = dashboardCloseTimesRef.current[dashboardKey];
           
           let elapsed: string;
-          // Only use saved close time if dashboard was opened in this session
           if (savedCloseTime && wasOpenedBefore) {
+            // Use the close time from when user navigated away
             elapsed = savedCloseTime;
           } else if (wasOpenedBefore && selectedDashboard?.created_at) {
+            // No close time - server stopped while actively viewing or fresh session
             elapsed = calculateElapsedTime(selectedDashboard.created_at);
           } else {
             elapsed = "0s";

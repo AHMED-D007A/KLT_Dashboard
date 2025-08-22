@@ -97,9 +97,14 @@ export function DashboardListPage() {
             {dashboards.map((dashboard) => (
               <Card key={dashboard.id} className="p-6 hover:shadow-lg transition-shadow border-orange-200 hover:border-orange-300">
                 <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-xl font-semibold text-orange-900 truncate">
-                    {dashboard.title}
-                  </h3>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-xl font-semibold text-orange-900 truncate">
+                      {dashboard.title}
+                    </h3>
+                    <p className="text-sm text-orange-500 mt-1">
+                      {dashboard.id}
+                    </p>
+                  </div>
                   <div className="flex gap-2 ml-2">
                     <Button
                       variant="ghost"
