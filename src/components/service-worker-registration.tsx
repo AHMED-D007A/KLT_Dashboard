@@ -6,6 +6,12 @@ import { registerServiceWorker, unregisterServiceWorker } from '@/lib/serviceWor
 export default function ServiceWorkerRegistration() {
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      // Clear old unregistration timestamps (older than 10 seconds)
+      const swUnregistered = sessionStorage.getItem('sw-unregistered');
+      if (swUnregistered && Date.now() - parseInt(swUnregistered) > 10000) {
+        sessionStorage.removeItem('sw-unregistered');
+      }
+
       // Check if service worker should be disabled
       const urlParams = new URLSearchParams(window.location.search);
       const disableSW = urlParams.get('disable-sw') === 'true' || 

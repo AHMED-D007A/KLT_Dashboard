@@ -41,10 +41,32 @@ export const unregisterServiceWorker = async (): Promise<void> => {
       const registration = await navigator.serviceWorker.getRegistration();
       if (registration) {
         await registration.unregister();
+        // Mark timestamp when SW was unregistered to help with race condition handling
+        sessionStorage.setItem('sw-unregistered', Date.now().toString());
         console.log('Service Worker unregistered');
+        
+        // Clear all caches to prevent interference
+        await clearAllCaches();
       }
     } catch (error) {
       console.error('Service Worker unregistration failed:', error);
+    }
+  }
+};
+
+export const clearAllCaches = async (): Promise<void> => {
+  if (typeof window !== 'undefined' && 'caches' in window) {
+    try {
+      const cacheNames = await caches.keys();
+      await Promise.all(
+        cacheNames.map(cacheName => {
+          console.log('Clearing cache:', cacheName);
+          return caches.delete(cacheName);
+        })
+      );
+      console.log('All caches cleared');
+    } catch (error) {
+      console.error('Failed to clear caches:', error);
     }
   }
 };
