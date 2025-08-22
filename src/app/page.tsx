@@ -77,25 +77,14 @@ function DashboardContent() {
   const dashboardCloseTimesRef = useRef(dashboardCloseTimes);
   const dashboardOpenedStatusRef = useRef(dashboardOpenedStatus);
 
+  // Consolidated ref updates
   useEffect(() => {
     dashboardDataRef.current = dashboardData;
-  }, [dashboardData]);
-
-  useEffect(() => {
     chartHistoriesRef.current = chartHistories;
-  }, [chartHistories]);
-
-  useEffect(() => {
     dashboardStopTimesRef.current = dashboardStopTimes;
-  }, [dashboardStopTimes]);
-
-  useEffect(() => {
     dashboardCloseTimesRef.current = dashboardCloseTimes;
-  }, [dashboardCloseTimes]);
-
-  useEffect(() => {
     dashboardOpenedStatusRef.current = dashboardOpenedStatus;
-  }, [dashboardOpenedStatus]);
+  }, [dashboardData, chartHistories, dashboardStopTimes, dashboardCloseTimes, dashboardOpenedStatus]);
 
   const getDashboardSpecificKey = (baseKey: string, dashboardId: string) =>
     `${baseKey}-dashboard-${dashboardId}`;
@@ -107,7 +96,38 @@ function DashboardContent() {
     return h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
 
-  useEffect(() => {
+  // Utility function to calculate elapsed time
+  const calculateElapsedTime = (startTime: string): string => {
+    const start = new Date(startTime).getTime();
+    const now = Date.now();
+    const elapsedSeconds = Math.max(0, Math.floor((now - start) / 1000));
+    return formatSecondsToDuration(elapsedSeconds);
+  };
+
+  // Utility function to save dashboard storage
+  const saveDashboardStorage = () => {
+    if (!selectedDashboard?.id) return;
+
+    try {
+      const dataToStore: DashboardStorage = {
+        dashboardData,
+        chartHistories,
+        dashboardStopTimes,
+        dashboardCloseTimes,
+        dashboardOpenedStatus,
+      };
+      const dashboardSpecificKey = getDashboardSpecificKey(
+        "dashboard-storage",
+        selectedDashboard.id
+      );
+      localStorage.setItem(dashboardSpecificKey, JSON.stringify(dataToStore));
+    } catch (error) {
+      console.error("Failed to save to localStorage:", error);
+    }
+  };
+
+  // Utility function to load dashboard storage
+  const loadDashboardStorage = () => {
     if (!selectedDashboard?.id) {
       setLocalStorageLoaded(false);
       return;
@@ -130,9 +150,53 @@ function DashboardContent() {
     } catch (error) {
       console.error("Failed to load from localStorage:", error);
     } finally {
-      // Mark localStorage as loaded regardless of success/failure
       setLocalStorageLoaded(true);
     }
+  };
+
+  // Utility function to remove dashboard data
+  const removeDashboardData = (dashboardId: string) => {
+    setDashboardData((prev) => {
+      const updated = { ...prev };
+      delete updated[dashboardId];
+      return updated;
+    });
+
+    setChartHistories((prev) => {
+      const updated = { ...prev };
+      delete updated[dashboardId];
+      return updated;
+    });
+
+    setDashboardStopTimes((prev) => {
+      const updated = { ...prev };
+      delete updated[dashboardId];
+      return updated;
+    });
+
+    setDashboardCloseTimes((prev) => {
+      const updated = { ...prev };
+      delete updated[dashboardId];
+      return updated;
+    });
+
+    setDashboardOpenedStatus((prev) => {
+      const updated = { ...prev };
+      delete updated[dashboardId];
+      return updated;
+    });
+  };
+
+  // Utility function to set dashboard as stopped
+  const setDashboardStopped = (dashboardId: string, elapsed: string) => {
+    setDashboardStopTimes((prev) => ({
+      ...prev,
+      [dashboardId]: elapsed,
+    }));
+  };
+
+  useEffect(() => {
+    loadDashboardStorage();
   }, [selectedDashboard?.id]);
 
   useEffect(() => {
@@ -148,10 +212,7 @@ function DashboardContent() {
       
       checkServerHealth(selectedDashboard.url).then((isServerLive) => {
         if (!isServerLive) {
-          setDashboardStopTimes((prev) => ({
-            ...prev,
-            [dashboardKey]: "0s",
-          }));
+          setDashboardStopped(dashboardKey, "0s");
         }
       });
     }
@@ -160,6 +221,7 @@ function DashboardContent() {
   const checkServerHealth = async (url: string, retries: number = 0): Promise<boolean> => {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
+        // Add delay for first attempt if service worker was recently unregistered
         if (attempt === 0 && typeof window !== 'undefined') {
           const swUnregistered = sessionStorage.getItem('sw-unregistered');
           if (swUnregistered && Date.now() - parseInt(swUnregistered) < 3000) {
@@ -172,21 +234,11 @@ function DashboardContent() {
           signal: AbortSignal.timeout(2000 + attempt * 500)
         });
         
-        if (response.ok) {
-          return true;
-        }
-        
-        if (response.status >= 400 && response.status < 500) {
-          return false;
-        }
+        if (response.ok) return true;
+        if (response.status >= 400 && response.status < 500) return false;
         
       } catch (error) {
-        const isLastAttempt = attempt === retries;
-        
-        if (isLastAttempt) {
-          return false;
-        }
-        
+        if (attempt === retries) return false;
         await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
       }
     }
@@ -204,9 +256,7 @@ function DashboardContent() {
 
     const dashboardKey = selectedDashboard.id;
 
-    if (dashboardStopTimes[dashboardKey]) {
-      return;
-    }
+    if (dashboardStopTimes[dashboardKey]) return;
 
     if (dashboardCloseTimes[dashboardKey]) {
       const checkServerAndHandleTiming = async () => {
@@ -214,23 +264,15 @@ function DashboardContent() {
         
         if (!isServerLive) {
           const savedCloseTime = dashboardCloseTimes[dashboardKey];
-          setDashboardStopTimes((prev) => ({
-            ...prev,
-            [dashboardKey]: savedCloseTime,
-          }));
-
-          setDashboardCloseTimes((prev) => {
-            const updated = { ...prev };
-            delete updated[dashboardKey];
-            return updated;
-          });
-        } else {
-          setDashboardCloseTimes((prev) => {
-            const updated = { ...prev };
-            delete updated[dashboardKey];
-            return updated;
-          });
+          setDashboardStopped(dashboardKey, savedCloseTime);
         }
+        
+        // Clean up close time regardless of server status
+        setDashboardCloseTimes((prev) => {
+          const updated = { ...prev };
+          delete updated[dashboardKey];
+          return updated;
+        });
       };
 
       checkServerAndHandleTiming();
@@ -239,17 +281,7 @@ function DashboardContent() {
         const isServerLive = await checkServerHealth(selectedDashboard.url);
         
         if (!isServerLive) {
-          if (dashboardOpenedStatus[dashboardKey]) {
-            setDashboardStopTimes((prev) => ({
-              ...prev,
-              [dashboardKey]: "0s",
-            }));
-          } else {
-            setDashboardStopTimes((prev) => ({
-              ...prev,
-              [dashboardKey]: "0s",
-            }));
-          }
+          setDashboardStopped(dashboardKey, "0s");
         }
       };
 
@@ -258,15 +290,8 @@ function DashboardContent() {
       const healthCheckInterval = setInterval(async () => {
         const isServerLive = await checkServerHealth(selectedDashboard.url);
         if (!isServerLive && !dashboardStopTimes[dashboardKey]) {
-          const start = new Date(selectedDashboard.created_at).getTime();
-          const now = Date.now();
-          const elapsedSeconds = Math.max(0, Math.floor((now - start) / 1000));
-          const elapsedString = formatSecondsToDuration(elapsedSeconds);
-          
-          setDashboardStopTimes((prev) => ({
-            ...prev,
-            [dashboardKey]: elapsedString,
-          }));
+          const elapsedString = calculateElapsedTime(selectedDashboard.created_at);
+          setDashboardStopped(dashboardKey, elapsedString);
         }
       }, 10000);
 
@@ -276,24 +301,7 @@ function DashboardContent() {
 
   // Save to localStorage whenever data changes using dashboard-specific key
   useEffect(() => {
-    if (!selectedDashboard?.id) return;
-
-    try {
-      const dataToStore: DashboardStorage = {
-        dashboardData,
-        chartHistories,
-        dashboardStopTimes,
-        dashboardCloseTimes,
-        dashboardOpenedStatus,
-      };
-      const dashboardSpecificKey = getDashboardSpecificKey(
-        "dashboard-storage",
-        selectedDashboard.id
-      );
-      localStorage.setItem(dashboardSpecificKey, JSON.stringify(dataToStore));
-    } catch (error) {
-      console.error("Failed to save to localStorage:", error);
-    }
+    saveDashboardStorage();
   }, [
     dashboardData,
     chartHistories,
@@ -309,15 +317,10 @@ function DashboardContent() {
 
     const handleBeforeUnload = () => {
       const currentStopTime = dashboardStopTimesRef.current[selectedDashboard.id];
-      if (currentStopTime) {
-        return;
-      }
+      if (currentStopTime) return;
 
       try {
-        const start = new Date(selectedDashboard.created_at).getTime();
-        const now = Date.now();
-        const elapsedSeconds = Math.max(0, Math.floor((now - start) / 1000));
-        const elapsedString = formatSecondsToDuration(elapsedSeconds);
+        const elapsedString = calculateElapsedTime(selectedDashboard.created_at);
 
         setDashboardCloseTimes((prev) => ({
           ...prev,
@@ -347,10 +350,7 @@ function DashboardContent() {
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [selectedDashboard?.id, selectedDashboard?.created_at]);
 
   const fetchVUData = async (url: string, retries: number = 0): Promise<VUReport[]> => {
@@ -358,6 +358,7 @@ function DashboardContent() {
     
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
+        // Add delay for first attempt if service worker was recently unregistered
         if (attempt === 0 && typeof window !== 'undefined') {
           const swUnregistered = sessionStorage.getItem('sw-unregistered');
           if (swUnregistered && Date.now() - parseInt(swUnregistered) < 3000) {
@@ -406,12 +407,7 @@ function DashboardContent() {
         return validatedData;
         
       } catch (error) {
-        const isLastAttempt = attempt === retries;
-        
-        if (isLastAttempt) {
-          return [];
-        }
-        
+        if (attempt === retries) return [];
         await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
       }
     }
@@ -481,23 +477,12 @@ function DashboardContent() {
         clearInterval(interval);
 
         if (!dashboardStopTimesRef.current[dashboardKey]) {
-          let elapsed = "0s";
-          
           const wasOpenedBefore = dashboardOpenedStatusRef.current[dashboardKey];
-          
-          if (!wasOpenedBefore) {
-            elapsed = "0s";
-          } else if (selectedDashboard?.created_at) {
-            const start = new Date(selectedDashboard.created_at).getTime();
-            const now = Date.now();
-            const diff = Math.max(0, Math.floor((now - start) / 1000));
-            elapsed = formatSecondsToDuration(diff);
-          }
+          const elapsed = wasOpenedBefore && selectedDashboard?.created_at 
+            ? calculateElapsedTime(selectedDashboard.created_at)
+            : "0s";
 
-          setDashboardStopTimes((prev) => ({
-            ...prev,
-            [dashboardKey]: elapsed,
-          }));
+          setDashboardStopped(dashboardKey, elapsed);
         }
       }
     };
@@ -514,35 +499,7 @@ function DashboardContent() {
   }, [selectedDashboard, dashboardKey, dashboardStopTimes, localStorageLoaded]);
 
   const handleDashboardDeleted = (deletedDashboardId: string) => {
-    setDashboardData((prev) => {
-      const updated = { ...prev };
-      delete updated[deletedDashboardId];
-      return updated;
-    });
-
-    setChartHistories((prev) => {
-      const updated = { ...prev };
-      delete updated[deletedDashboardId];
-      return updated;
-    });
-
-    setDashboardStopTimes((prev) => {
-      const updated = { ...prev };
-      delete updated[deletedDashboardId];
-      return updated;
-    });
-
-    setDashboardCloseTimes((prev) => {
-      const updated = { ...prev };
-      delete updated[deletedDashboardId];
-      return updated;
-    });
-
-    setDashboardOpenedStatus((prev) => {
-      const updated = { ...prev };
-      delete updated[deletedDashboardId];
-      return updated;
-    });
+    removeDashboardData(deletedDashboardId);
 
     if (selectedDashboard?.id === deletedDashboardId) {
       setSelectedDashboard(null);
@@ -618,6 +575,36 @@ function DashboardWithSearchParams() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Utility function to load dashboard from klt-dashboards array in localStorage
+  const loadDashboardFromStorage = (dashboardId: string): boolean => {
+    console.log(`🔍 Attempting to load dashboard ${dashboardId} from localStorage`);
+    const savedDashboards = localStorage.getItem("klt-dashboards");
+    console.log(`📦 Saved dashboards in localStorage:`, savedDashboards);
+    
+    if (savedDashboards) {
+      try {
+        const parsed: DashboardToken[] = JSON.parse(savedDashboards);
+        console.log(`📋 Parsed dashboards:`, parsed);
+        const dashboard = parsed.find((d) => d.id === dashboardId);
+        console.log(`🎯 Found dashboard with ID ${dashboardId}:`, dashboard);
+        
+        if (dashboard) {
+          setSelectedDashboard(dashboard);
+          console.log("✅ Loaded dashboard from klt-dashboards array");
+          return true;
+        } else {
+          console.log(`❌ No dashboard found with ID ${dashboardId}`);
+        }
+      } catch (error) {
+        console.error("Failed to parse klt-dashboards from localStorage:", error);
+      }
+    } else {
+      console.log("❌ No klt-dashboards found in localStorage");
+    }
+    
+    return false;
+  };
+
   useEffect(() => {
     if (loading) {
       const timeout = setTimeout(() => {
@@ -638,6 +625,7 @@ function DashboardWithSearchParams() {
     try {
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
+          // Add delay for first attempt if service worker was recently unregistered
           if (attempt === 0 && typeof window !== 'undefined') {
             const swUnregistered = sessionStorage.getItem('sw-unregistered');
             if (swUnregistered && Date.now() - parseInt(swUnregistered) < 3000) {
@@ -645,7 +633,12 @@ function DashboardWithSearchParams() {
             }
           }
 
+          // Temporarily disable service worker during token fetch to avoid interference
+          const disableSWOriginal = localStorage.getItem('disable-sw');
+          localStorage.setItem('disable-sw', 'true');
+
           const response = await fetch("http://localhost:2345/dashboards", {
+            cache: "no-store",
             signal: AbortSignal.timeout(3000 + attempt * 1000)
           });
           
@@ -655,9 +648,8 @@ function DashboardWithSearchParams() {
           
           const dashboardToken = await response.json();
           
-          if (dashboardToken.id === dashboardId) {
-            setSelectedDashboard(dashboardToken);
-            
+          // CRITICAL: Store token immediately in klt-dashboards array before any other operations
+          if (dashboardToken && dashboardToken.id) {
             const savedDashboards = localStorage.getItem("klt-dashboards");
             let dashboards: DashboardToken[] = [];
             
@@ -666,6 +658,7 @@ function DashboardWithSearchParams() {
                 dashboards = JSON.parse(savedDashboards);
               } catch (error) {
                 console.error("Failed to parse saved dashboards:", error);
+                dashboards = [];
               }
             }
             
@@ -676,38 +669,52 @@ function DashboardWithSearchParams() {
               dashboards.unshift(dashboardToken);
             }
             
+            // Store immediately to localStorage in klt-dashboards array
             localStorage.setItem("klt-dashboards", JSON.stringify(dashboards));
-            return;
+            
+            console.log(`✅ Token for dashboard ${dashboardToken.id} stored in klt-dashboards array`);
+            
+            // Set the selected dashboard if it matches the requested ID
+            if (dashboardToken.id === dashboardId) {
+              setSelectedDashboard(dashboardToken);
+            }
+          }
+
+          // Restore original service worker setting
+          if (disableSWOriginal === null) {
+            localStorage.removeItem('disable-sw');
+          } else {
+            localStorage.setItem('disable-sw', disableSWOriginal);
+          }
+          
+          // Only check ID match after storage is complete
+          if (dashboardToken.id === dashboardId) {
+            return; // Successfully stored and set the dashboard
           } else {
             throw new Error(`Dashboard ID mismatch: expected ${dashboardId}, got ${dashboardToken.id}`);
           }
           
         } catch (error) {
-          const isLastAttempt = attempt === retries;
-          
-          if (!isLastAttempt) {
-            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
-            continue;
+          // Restore original service worker setting on error
+          const disableSWOriginal = localStorage.getItem('disable-sw');
+          if (disableSWOriginal === 'true') {
+            localStorage.removeItem('disable-sw');
           }
           
-          throw error;
+          if (attempt === retries) throw error;
+          await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
         }
       }
     } catch (error) {
+      console.error("❌ Failed to fetch dashboard token:", error);
       setError(error instanceof Error ? error.message : "Failed to fetch dashboard");
       
-      const savedDashboards = localStorage.getItem("klt-dashboards");
-      if (savedDashboards) {
-        try {
-          const parsed: DashboardToken[] = JSON.parse(savedDashboards);
-          const dashboard = parsed.find((d) => d.id === dashboardId);
-          if (dashboard) {
-            setSelectedDashboard(dashboard);
-            setError(null);
-          }
-        } catch (error) {
-          console.error("Failed to parse saved dashboards:", error);
-        }
+      // Try to load from klt-dashboards array as fallback
+      if (loadDashboardFromStorage(dashboardId)) {
+        console.log("✅ Loaded dashboard from klt-dashboards localStorage");
+        setError(null);
+      } else {
+        setError("Dashboard token unavailable. The server may have closed after serving the initial request.");
       }
     } finally {
       setLoading(false);
@@ -723,22 +730,16 @@ function DashboardWithSearchParams() {
       }
       
       // Try localStorage first for faster loading
-      const savedDashboards = localStorage.getItem("klt-dashboards");
-      if (savedDashboards) {
-        try {
-          const parsed: DashboardToken[] = JSON.parse(savedDashboards);
-          const dashboard = parsed.find((d) => d.id === dashboardId);
-          if (dashboard) {
-            setSelectedDashboard(dashboard);
-            fetchDashboardToken(dashboardId).catch(() => {});
-            return;
-          }
-        } catch (error) {
-          console.error("Failed to parse saved dashboards:", error);
-        }
+      if (loadDashboardFromStorage(dashboardId)) {
+        // Fetch updated data in background (but don't block on it)
+        setTimeout(() => {
+          fetchDashboardToken(dashboardId).catch(() => {});
+        }, 100);
+      } else {
+        // No cached data, fetch from server
+        console.log("🔄 No cached token found, fetching from server...");
+        fetchDashboardToken(dashboardId);
       }
-      
-      fetchDashboardToken(dashboardId);
     } else {
       setSelectedDashboard(null);
     }
@@ -760,9 +761,22 @@ function DashboardWithSearchParams() {
   if (error && !selectedDashboard) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="text-red-600 mb-2">Failed to load dashboard</div>
-          <div className="text-sm text-gray-600">{error}</div>
+          <div className="text-sm text-gray-600 mb-4">{error}</div>
+          {error.includes("Dashboard token unavailable") && (
+            <div className="text-xs text-orange-600 bg-orange-50 p-3 rounded">
+              <strong>Note:</strong> The dashboard server only serves one request per session. 
+              If you've unregistered the service worker, the token may no longer be available. 
+              Try restarting the load test to generate a new token.
+            </div>
+          )}
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-3 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

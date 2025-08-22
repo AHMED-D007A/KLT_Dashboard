@@ -12,7 +12,7 @@ export default function ServiceWorkerRegistration() {
         sessionStorage.removeItem('sw-unregistered');
       }
 
-      // Check if service worker should be disabled
+      // Check if service worker should be disabled (including temporary disable during token fetch)
       const urlParams = new URLSearchParams(window.location.search);
       const disableSW = urlParams.get('disable-sw') === 'true' || 
                        localStorage.getItem('disable-sw') === 'true';
@@ -27,8 +27,33 @@ export default function ServiceWorkerRegistration() {
       const isNextDev = process.env.NODE_ENV === 'development' && window.location.port === '3000';
       
       if (!isNextDev) {
-        console.log('✅ Registering Service Worker for offline support');
-        registerServiceWorker();
+        // Delay service worker registration to allow critical token fetching to complete first
+        const dashboardId = urlParams.get('dashboard');
+        const hasStoredToken = dashboardId && (() => {
+          try {
+            const savedDashboards = localStorage.getItem("klt-dashboards");
+            if (savedDashboards) {
+              const parsed = JSON.parse(savedDashboards);
+              return parsed.some((d: any) => d.id === dashboardId);
+            }
+          } catch (error) {
+            console.error("Failed to check stored dashboards:", error);
+          }
+          return false;
+        })();
+        
+        // If we have a stored token, register SW immediately
+        // If we don't have a token and there's a dashboard ID, delay SW registration to prioritize token fetch
+        const registrationDelay = (!hasStoredToken && dashboardId) ? 2000 : 100;
+        
+        setTimeout(() => {
+          // Double-check that SW is still not disabled
+          const currentlyDisabled = localStorage.getItem('disable-sw') === 'true';
+          if (!currentlyDisabled) {
+            console.log('✅ Registering Service Worker for offline support');
+            registerServiceWorker();
+          }
+        }, registrationDelay);
       }
     }
   }, []);
