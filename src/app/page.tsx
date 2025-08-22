@@ -122,7 +122,7 @@ function DashboardContent() {
       );
       localStorage.setItem(dashboardSpecificKey, JSON.stringify(dataToStore));
     } catch (error) {
-      console.error("Failed to save to localStorage:", error);
+      // Silently handle localStorage errors
     }
   };
 
@@ -141,14 +141,14 @@ function DashboardContent() {
       const stored = localStorage.getItem(dashboardSpecificKey);
       if (stored) {
         const data: DashboardStorage = JSON.parse(stored);
-        setDashboardData(data.dashboardData || {});
-        setChartHistories(data.chartHistories || {});
-        setDashboardStopTimes(data.dashboardStopTimes || {});
-        setDashboardCloseTimes(data.dashboardCloseTimes || {});
-        setDashboardOpenedStatus(data.dashboardOpenedStatus || {});
+        setDashboardData((prev) => ({ ...prev, ...data.dashboardData }));
+        setChartHistories((prev) => ({ ...prev, ...data.chartHistories }));
+        setDashboardStopTimes((prev) => ({ ...prev, ...data.dashboardStopTimes }));
+        setDashboardCloseTimes((prev) => ({ ...prev, ...data.dashboardCloseTimes }));
+        setDashboardOpenedStatus((prev) => ({ ...prev, ...data.dashboardOpenedStatus }));
       }
     } catch (error) {
-      console.error("Failed to load from localStorage:", error);
+      // Silently handle localStorage errors
     } finally {
       setLocalStorageLoaded(true);
     }
@@ -212,7 +212,29 @@ function DashboardContent() {
       
       checkServerHealth(selectedDashboard.url).then((isServerLive) => {
         if (!isServerLive) {
-          setDashboardStopped(dashboardKey, "0s");
+          // Server is dead - check if we have a close time from previous session
+          const savedCloseTime = dashboardCloseTimes[dashboardKey];
+          if (savedCloseTime) {
+            // Use the close time from previous session
+            setDashboardStopped(dashboardKey, savedCloseTime);
+          } else {
+            // No close time, calculate from created_at
+            setDashboardStopped(dashboardKey, "0s");
+          }
+          
+          // Clean up close time after using it
+          setDashboardCloseTimes((prev) => {
+            const updated = { ...prev };
+            delete updated[dashboardKey];
+            return updated;
+          });
+        } else {
+          // Server is alive - clean up any stale close time from previous session
+          setDashboardCloseTimes((prev) => {
+            const updated = { ...prev };
+            delete updated[dashboardKey];
+            return updated;
+          });
         }
       });
     }
@@ -221,7 +243,7 @@ function DashboardContent() {
   const checkServerHealth = async (url: string, retries: number = 0): Promise<boolean> => {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        // Add delay for first attempt if service worker was recently unregistered
+        // Add delay if service worker was recently unregistered
         if (attempt === 0 && typeof window !== 'undefined') {
           const swUnregistered = sessionStorage.getItem('sw-unregistered');
           if (swUnregistered && Date.now() - parseInt(swUnregistered) < 3000) {
@@ -258,48 +280,146 @@ function DashboardContent() {
 
     if (dashboardStopTimes[dashboardKey]) return;
 
-    if (dashboardCloseTimes[dashboardKey]) {
+    if (dashboardCloseTimes[dashboardKey] && dashboardOpenedStatus[dashboardKey]) {
+      // This handles navigation within the same session
       const checkServerAndHandleTiming = async () => {
         const isServerLive = await checkServerHealth(selectedDashboard.url);
         
         if (!isServerLive) {
           const savedCloseTime = dashboardCloseTimes[dashboardKey];
           setDashboardStopped(dashboardKey, savedCloseTime);
+          
+          // Only clean up close time after using it for stopped state
+          setDashboardCloseTimes((prev) => {
+            const updated = { ...prev };
+            delete updated[dashboardKey];
+            return updated;
+          });
         }
-        
-        // Clean up close time regardless of server status
-        setDashboardCloseTimes((prev) => {
-          const updated = { ...prev };
-          delete updated[dashboardKey];
-          return updated;
-        });
+        // If server is still live, keep the close time for future use
       };
 
       checkServerAndHandleTiming();
-    } else {
-      const checkInitialServerHealth = async () => {
-        const isServerLive = await checkServerHealth(selectedDashboard.url);
-        
-        if (!isServerLive) {
-          setDashboardStopped(dashboardKey, "0s");
-        }
-      };
-
-      checkInitialServerHealth();
-      
+    } else if (dashboardOpenedStatus[dashboardKey]) {
+      // This handles the normal case where dashboard is already opened in this session
       const healthCheckInterval = setInterval(async () => {
         const isServerLive = await checkServerHealth(selectedDashboard.url);
         if (!isServerLive && !dashboardStopTimes[dashboardKey]) {
-          const elapsedString = calculateElapsedTime(selectedDashboard.created_at);
+          // Use saved close time if available (from navigation within session)
+          const savedCloseTime = dashboardCloseTimes[dashboardKey];
+          const elapsedString = savedCloseTime || calculateElapsedTime(selectedDashboard.created_at);
           setDashboardStopped(dashboardKey, elapsedString);
+          
+          // If we used a close time, clean it up
+          if (savedCloseTime) {
+            setDashboardCloseTimes((prev) => {
+              const updated = { ...prev };
+              delete updated[dashboardKey];
+              return updated;
+            });
+          }
         }
       }, 10000);
 
       return () => clearInterval(healthCheckInterval);
     }
+    // If dashboard is not opened in this session, the first effect will handle it
   }, [selectedDashboard, dashboardStopTimes, dashboardCloseTimes, dashboardOpenedStatus, localStorageLoaded]);
 
-  // Save to localStorage whenever data changes using dashboard-specific key
+  // Track navigation away from dashboards to save close time
+  const prevDashboardRef = useRef<DashboardToken | null>(null);
+  
+  useEffect(() => {
+    const prevDashboard = prevDashboardRef.current;
+    
+    // If we had a previous dashboard and now have a different one (or null), save close time for the previous one
+    if (prevDashboard?.id && 
+        prevDashboard.id !== selectedDashboard?.id && 
+        localStorageLoaded) {
+      
+      const prevDashboardKey = prevDashboard.id;
+      const currentStopTime = dashboardStopTimesRef.current[prevDashboardKey];
+      
+      // Only save close time if dashboard is not already stopped
+      if (!currentStopTime) {
+        try {
+          const elapsedString = calculateElapsedTime(prevDashboard.created_at);
+          
+          // Update the close times state
+          setDashboardCloseTimes((prev) => ({
+            ...prev,
+            [prevDashboardKey]: elapsedString,
+          }));
+
+          // Also save directly to localStorage for immediate persistence
+          const dashboardSpecificKey = getDashboardSpecificKey(
+            "dashboard-storage",
+            prevDashboardKey
+          );
+          const currentStorage = localStorage.getItem(dashboardSpecificKey);
+          if (currentStorage) {
+            const data: DashboardStorage = JSON.parse(currentStorage);
+            data.dashboardCloseTimes = {
+              ...data.dashboardCloseTimes,
+              [prevDashboardKey]: elapsedString,
+            };
+            localStorage.setItem(dashboardSpecificKey, JSON.stringify(data));
+          }
+        } catch (error) {
+          // Silently handle localStorage errors
+        }
+      }
+    }
+    
+    // Update the ref with current dashboard
+    prevDashboardRef.current = selectedDashboard;
+  }, [selectedDashboard?.id, localStorageLoaded]);
+
+  // Periodically check dashboards with close times to see if their servers have stopped
+  useEffect(() => {
+    if (!localStorageLoaded) return;
+    
+    // Only run if there are close times to check
+    const closeTimeEntries = Object.entries(dashboardCloseTimes);
+    if (closeTimeEntries.length === 0) return;
+
+    const checkDashboardsWithCloseTimes = async () => {      
+      for (const [dashboardId, closeTime] of closeTimeEntries) {
+        // Skip if already stopped, currently being viewed, or not opened in this session
+        if (dashboardStopTimes[dashboardId] || 
+            selectedDashboard?.id === dashboardId ||
+            !dashboardOpenedStatus[dashboardId]) {
+          continue;
+        }
+
+        // Try to find the dashboard URL from localStorage
+        const dashboards = JSON.parse(localStorage.getItem("klt-dashboards") || "[]");
+        const dashboard = dashboards.find((d: DashboardToken) => d.id === dashboardId);
+        
+        if (dashboard?.url) {
+          const isServerLive = await checkServerHealth(dashboard.url);
+          if (!isServerLive) {
+            setDashboardStopped(dashboardId, closeTime);
+            
+            // Clean up the close time after using it
+            setDashboardCloseTimes((prev) => {
+              const updated = { ...prev };
+              delete updated[dashboardId];
+              return updated;
+            });
+          }
+        }
+      }
+    };
+
+    // Check immediately and then every 15 seconds
+    checkDashboardsWithCloseTimes();
+    const interval = setInterval(checkDashboardsWithCloseTimes, 15000);
+
+    return () => clearInterval(interval);
+  }, [dashboardCloseTimes, dashboardStopTimes, selectedDashboard?.id, localStorageLoaded]);
+
+  // Save to localStorage whenever data changes
   useEffect(() => {
     saveDashboardStorage();
   }, [
@@ -345,7 +465,7 @@ function DashboardContent() {
           localStorage.setItem(dashboardSpecificKey, JSON.stringify(data));
         }
       } catch (error) {
-        console.error("Failed to save close time on unload:", error);
+        // Silently handle localStorage errors
       }
     };
 
@@ -358,7 +478,7 @@ function DashboardContent() {
     
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        // Add delay for first attempt if service worker was recently unregistered
+        // Add delay if service worker was recently unregistered
         if (attempt === 0 && typeof window !== 'undefined') {
           const swUnregistered = sessionStorage.getItem('sw-unregistered');
           if (swUnregistered && Date.now() - parseInt(swUnregistered) < 3000) {
@@ -378,7 +498,6 @@ function DashboardContent() {
         const json = await response.json();
 
         if (!Array.isArray(json)) {
-          console.warn("API returned non-array data:", typeof json);
           return [];
         }
 
@@ -478,11 +597,28 @@ function DashboardContent() {
 
         if (!dashboardStopTimesRef.current[dashboardKey]) {
           const wasOpenedBefore = dashboardOpenedStatusRef.current[dashboardKey];
-          const elapsed = wasOpenedBefore && selectedDashboard?.created_at 
-            ? calculateElapsedTime(selectedDashboard.created_at)
-            : "0s";
+          const savedCloseTime = dashboardCloseTimesRef.current[dashboardKey];
+          
+          let elapsed: string;
+          // Only use saved close time if dashboard was opened in this session
+          if (savedCloseTime && wasOpenedBefore) {
+            elapsed = savedCloseTime;
+          } else if (wasOpenedBefore && selectedDashboard?.created_at) {
+            elapsed = calculateElapsedTime(selectedDashboard.created_at);
+          } else {
+            elapsed = "0s";
+          }
 
           setDashboardStopped(dashboardKey, elapsed);
+          
+          // Clean up close time if we used it
+          if (savedCloseTime && wasOpenedBefore) {
+            setDashboardCloseTimes((prev) => {
+              const updated = { ...prev };
+              delete updated[dashboardKey];
+              return updated;
+            });
+          }
         }
       }
     };
@@ -575,31 +711,45 @@ function DashboardWithSearchParams() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Utility function to load dashboard from klt-dashboards array in localStorage
-  const loadDashboardFromStorage = (dashboardId: string): boolean => {
-    console.log(`🔍 Attempting to load dashboard ${dashboardId} from localStorage`);
-    const savedDashboards = localStorage.getItem("klt-dashboards");
-    console.log(`📦 Saved dashboards in localStorage:`, savedDashboards);
-    
-    if (savedDashboards) {
-      try {
-        const parsed: DashboardToken[] = JSON.parse(savedDashboards);
-        console.log(`📋 Parsed dashboards:`, parsed);
-        const dashboard = parsed.find((d) => d.id === dashboardId);
-        console.log(`🎯 Found dashboard with ID ${dashboardId}:`, dashboard);
-        
-        if (dashboard) {
-          setSelectedDashboard(dashboard);
-          console.log("✅ Loaded dashboard from klt-dashboards array");
-          return true;
-        } else {
-          console.log(`❌ No dashboard found with ID ${dashboardId}`);
-        }
-      } catch (error) {
-        console.error("Failed to parse klt-dashboards from localStorage:", error);
+  // Utility function to get dashboards from localStorage
+  const getDashboardsFromStorage = (): DashboardToken[] => {
+    try {
+      const savedDashboards = localStorage.getItem("klt-dashboards");
+      if (savedDashboards) {
+        return JSON.parse(savedDashboards);
       }
-    } else {
-      console.log("❌ No klt-dashboards found in localStorage");
+    } catch (error) {
+      // Silently handle parsing errors
+    }
+    return [];
+  };
+
+  // Utility function to save dashboard to localStorage
+  const saveDashboardToStorage = (dashboardToken: DashboardToken) => {
+    try {
+      const dashboards = getDashboardsFromStorage();
+      const existingIndex = dashboards.findIndex(d => d.id === dashboardToken.id);
+      
+      if (existingIndex >= 0) {
+        dashboards[existingIndex] = dashboardToken;
+      } else {
+        dashboards.unshift(dashboardToken);
+      }
+      
+      localStorage.setItem("klt-dashboards", JSON.stringify(dashboards));
+    } catch (error) {
+      // Silently handle localStorage errors
+    }
+  };
+
+  // Load dashboard from klt-dashboards array in localStorage
+  const loadDashboardFromStorage = (dashboardId: string): boolean => {
+    const dashboards = getDashboardsFromStorage();
+    const dashboard = dashboards.find((d) => d.id === dashboardId);
+    
+    if (dashboard) {
+      setSelectedDashboard(dashboard);
+      return true;
     }
     
     return false;
@@ -625,7 +775,7 @@ function DashboardWithSearchParams() {
     try {
       for (let attempt = 0; attempt <= retries; attempt++) {
         try {
-          // Add delay for first attempt if service worker was recently unregistered
+          // Add delay if service worker was recently unregistered
           if (attempt === 0 && typeof window !== 'undefined') {
             const swUnregistered = sessionStorage.getItem('sw-unregistered');
             if (swUnregistered && Date.now() - parseInt(swUnregistered) < 3000) {
@@ -633,7 +783,7 @@ function DashboardWithSearchParams() {
             }
           }
 
-          // Temporarily disable service worker during token fetch to avoid interference
+          // Disable service worker during token fetch to avoid interference
           const disableSWOriginal = localStorage.getItem('disable-sw');
           localStorage.setItem('disable-sw', 'true');
 
@@ -648,31 +798,9 @@ function DashboardWithSearchParams() {
           
           const dashboardToken = await response.json();
           
-          // CRITICAL: Store token immediately in klt-dashboards array before any other operations
+          // Store token immediately in klt-dashboards array
           if (dashboardToken && dashboardToken.id) {
-            const savedDashboards = localStorage.getItem("klt-dashboards");
-            let dashboards: DashboardToken[] = [];
-            
-            if (savedDashboards) {
-              try {
-                dashboards = JSON.parse(savedDashboards);
-              } catch (error) {
-                console.error("Failed to parse saved dashboards:", error);
-                dashboards = [];
-              }
-            }
-            
-            const existingIndex = dashboards.findIndex(d => d.id === dashboardToken.id);
-            if (existingIndex >= 0) {
-              dashboards[existingIndex] = dashboardToken;
-            } else {
-              dashboards.unshift(dashboardToken);
-            }
-            
-            // Store immediately to localStorage in klt-dashboards array
-            localStorage.setItem("klt-dashboards", JSON.stringify(dashboards));
-            
-            console.log(`✅ Token for dashboard ${dashboardToken.id} stored in klt-dashboards array`);
+            saveDashboardToStorage(dashboardToken);
             
             // Set the selected dashboard if it matches the requested ID
             if (dashboardToken.id === dashboardId) {
@@ -706,12 +834,10 @@ function DashboardWithSearchParams() {
         }
       }
     } catch (error) {
-      console.error("❌ Failed to fetch dashboard token:", error);
       setError(error instanceof Error ? error.message : "Failed to fetch dashboard");
       
       // Try to load from klt-dashboards array as fallback
       if (loadDashboardFromStorage(dashboardId)) {
-        console.log("✅ Loaded dashboard from klt-dashboards localStorage");
         setError(null);
       } else {
         setError("Dashboard token unavailable. The server may have closed after serving the initial request.");
@@ -737,7 +863,6 @@ function DashboardWithSearchParams() {
         }, 100);
       } else {
         // No cached data, fetch from server
-        console.log("🔄 No cached token found, fetching from server...");
         fetchDashboardToken(dashboardId);
       }
     } else {
@@ -771,12 +896,6 @@ function DashboardWithSearchParams() {
               Try restarting the load test to generate a new token.
             </div>
           )}
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-3 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Retry
-          </button>
         </div>
       </div>
     );
