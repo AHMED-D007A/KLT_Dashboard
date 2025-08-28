@@ -305,23 +305,26 @@ function DashboardContent() {
       const healthCheckInterval = setInterval(async () => {
         const isServerLive = await checkServerHealth(selectedDashboard.url);
         if (!isServerLive && !dashboardStopTimes[dashboardKey]) {
-          // Check if we have a saved close time from previous navigation
+          // Check if user is currently actively viewing this dashboard
+          const isActivelyViewing = selectedDashboard?.id === dashboardKey;
           const savedCloseTime = dashboardCloseTimes[dashboardKey];
           
           let elapsedString: string;
-          if (savedCloseTime) {
+          if (isActivelyViewing) {
+            // Server stopped while actively viewing - always use real-time calculation
+            elapsedString = calculateElapsedTime(selectedDashboard.created_at);
+          } else if (savedCloseTime) {
             // Use the close time from when user navigated away
             elapsedString = savedCloseTime;
           } else {
-            // No close time exists - this means server stopped while actively viewing
-            // Use real-time calculation
+            // Fallback - use real-time calculation
             elapsedString = calculateElapsedTime(selectedDashboard.created_at);
           }
           
           setDashboardStopped(dashboardKey, elapsedString);
           
           // Clean up close time if we used it
-          if (savedCloseTime) {
+          if (savedCloseTime && !isActivelyViewing) {
             setDashboardCloseTimes((prev) => {
               const updated = { ...prev };
               delete updated[dashboardKey];
@@ -608,9 +611,13 @@ function DashboardContent() {
         if (!dashboardStopTimesRef.current[dashboardKey]) {
           const wasOpenedBefore = dashboardOpenedStatusRef.current[dashboardKey];
           const savedCloseTime = dashboardCloseTimesRef.current[dashboardKey];
+          const isActivelyViewing = selectedDashboard?.id === dashboardKey;
           
           let elapsed: string;
-          if (savedCloseTime && wasOpenedBefore) {
+          if (isActivelyViewing && selectedDashboard?.created_at) {
+            // Server stopped while actively viewing - always use real-time calculation
+            elapsed = calculateElapsedTime(selectedDashboard.created_at);
+          } else if (savedCloseTime && wasOpenedBefore) {
             // Use the close time from when user navigated away
             elapsed = savedCloseTime;
           } else if (wasOpenedBefore && selectedDashboard?.created_at) {
@@ -623,7 +630,7 @@ function DashboardContent() {
           setDashboardStopped(dashboardKey, elapsed);
           
           // Clean up close time if we used it
-          if (savedCloseTime && wasOpenedBefore) {
+          if (savedCloseTime && wasOpenedBefore && !isActivelyViewing) {
             setDashboardCloseTimes((prev) => {
               const updated = { ...prev };
               delete updated[dashboardKey];
